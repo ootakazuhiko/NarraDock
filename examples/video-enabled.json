@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "project_id": "neutral-demo",
+  "content_id": "paper-shapes",
+  "title": "Three paper shapes",
+  "language": "en",
+  "outputs": [
+    "video"
+  ],
+  "source": {
+    "kind": "script",
+    "asset_id": "sample-script",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "publication": {
+    "mode": "package_only"
+  }
+}

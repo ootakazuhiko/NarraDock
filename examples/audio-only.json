@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "project_id": "neutral-demo",
+  "content_id": "quiet-minute",
+  "title": "A quiet minute",
+  "language": "en",
+  "outputs": [
+    "audio"
+  ],
+  "source": {
+    "kind": "existing_audio",
+    "asset_id": "sample-audio",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "publication": {
+    "mode": "package_only"
+  }
+}
