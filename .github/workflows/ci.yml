@@ -1,0 +1,43 @@
+name: NarraDock CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: narradock-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+      - name: Unit tests
+        run: python -B -m unittest discover -s tests -v
+      - name: Public source inventory
+        run: python -B tools/check_public_tree.py
+      - name: Validate neutral audio manifest
+        run: python -B narradock.py validate examples/audio-only.json
+      - name: Plan audio-only workflow
+        run: python -B narradock.py plan examples/audio-only.json
+      - name: Plan video-enabled workflow
+        run: python -B narradock.py plan examples/video-enabled.json
+      - name: Confirm validation did not change tracked files
+        run: git diff --exit-code
