@@ -15,11 +15,15 @@
   "docs/development.md",
   "docs/project-isolation.md",
   "docs/roadmap.md",
+  "docs/synchronized-playback.md",
   "examples/audio-only.json",
+  "examples/timed-transcript.json",
   "examples/video-enabled.json",
   "narradock.py",
+  "narradock_transcript.py",
   "public-files.json",
   "tests/test_narradock.py",
   "tests/test_public_tree.py",
+  "tests/test_transcript.py",
   "tools/check_public_tree.py"
 ]
