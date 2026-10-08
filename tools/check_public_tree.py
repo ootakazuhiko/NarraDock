@@ -44,7 +44,8 @@ def check(root: Path) -> list[str]:
             problems.append("unsafe inventory path")
             continue
         path = root / name
-        if any(part.is_symlink() for part in (path, *path.parents)):
+        # Relative ancestors stop at '.', so the boundary includes root only.
+        if any((root / part).is_symlink() for part in (relative, *relative.parents)):
             problems.append("symlink in public inventory")
             continue
         if not path.is_file() or path.stat().st_size > 131072:

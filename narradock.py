@@ -82,7 +82,9 @@ def load_manifest(path: Path) -> dict[str, Any]:
         manifest = json.loads(data.decode("utf-8"), object_pairs_hook=_unique_object)
         validate(manifest)
         return manifest
-    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as error:
+    except ManifestError:
+        raise
+    except (OSError, ValueError, RecursionError) as error:
         raise ManifestError("Manifest could not be read as valid UTF-8 JSON") from error
 
 
