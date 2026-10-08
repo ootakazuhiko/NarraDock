@@ -14,7 +14,7 @@
 
 [開発前提と検証](docs/development.md)、[音声公開設計](docs/audio-publication.md)、[開発計画](docs/roadmap.md)を参照してください。音声公開はIssue #2で管理します。公開先と認証方式は未選定です。
 
-製品版はpre-alphaの`0.1.0a1`です。配布パッケージは未公開です。[Codexへの開発引継ぎ](docs/codex-handoff.md)とIssue #7に次の本体開発単位を記録しています。Codexの実行はまだ開始していません。
+製品版はpre-alphaの`0.1.0a1`です。配布パッケージは未公開です。[Codexへの開発引継ぎ](docs/codex-handoff.md)とIssue #7に次の本体開発単位を記録しています。実行・統合の最新状態は、対応するIssueとPRで確認してください。
 
 ## ライセンス
 
