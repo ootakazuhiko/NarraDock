@@ -3,6 +3,8 @@ import copy
 import io
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -140,6 +142,52 @@ class ContractTests(unittest.TestCase):
             path.write_bytes(bytes([255]))
             with self.assertRaises(narradock.ManifestError):
                 narradock.load_manifest(path)
+
+    def test_large_json_integer_has_safe_api_error(self):
+        original_limit = sys.get_int_max_str_digits()
+        try:
+            sys.set_int_max_str_digits(4300)
+            with tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / "synthetic-private-marker.json"
+                path.write_text('{"schema_version":' + '1' * 5000 + '}', encoding="utf-8")
+                with self.assertRaises(narradock.ManifestError) as caught:
+                    narradock.load_manifest(path)
+                self.assertEqual("Manifest could not be read as valid UTF-8 JSON",
+                                 str(caught.exception))
+        finally:
+            sys.set_int_max_str_digits(original_limit)
+
+    def test_large_json_integer_has_safe_cli_error(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "synthetic-private-marker.json"
+            path.write_text('{"schema_version":' + '1' * 5000 + '}', encoding="utf-8")
+            for command in ("validate", "plan"):
+                with self.subTest(command=command):
+                    result = subprocess.run(
+                        [sys.executable, "-B", "-X", "int_max_str_digits=4300",
+                         str(ROOT / "narradock.py"), command, str(path)],
+                        cwd=temp, capture_output=True, check=False)
+                    self.assertEqual(2, result.returncode)
+                    self.assertEqual(b"", result.stdout)
+                    self.assertEqual(
+                        b"Invalid manifest: Manifest could not be read as valid UTF-8 JSON",
+                        result.stderr.strip())
+                    self.assertNotIn(b"Traceback", result.stderr)
+                    self.assertNotIn(b"synthetic-private-marker", result.stderr)
+
+    def test_specific_manifest_errors_are_preserved(self):
+        cases = (
+            (b'{"project_id":"one","project_id":"two"}', "Duplicate JSON key"),
+            (b" " * (narradock.MAX_BYTES + 1), "Manifest exceeds size limit"),
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "input.json"
+            for raw, message in cases:
+                with self.subTest(message=message):
+                    path.write_bytes(raw)
+                    with self.assertRaises(narradock.ManifestError) as caught:
+                        narradock.load_manifest(path)
+                    self.assertEqual(message, str(caught.exception))
 
     def test_large_input_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

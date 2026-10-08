@@ -46,6 +46,64 @@ class PublicTreeTests(unittest.TestCase):
             with patch("tools.check_public_tree.subprocess.run", return_value=result):
                 self.assertIn("unsafe inventory path", check(root))
 
+    def make_symlink(self, link, target, *, directory=False):
+        try:
+            link.symlink_to(target, target_is_directory=directory)
+        except NotImplementedError:
+            self.skipTest("Filesystem symlinks are not supported")
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink creation privilege is unavailable")
+            raise
+
+    def check_fixture(self, root, name):
+        (root / "public-files.json").write_text(json.dumps([name]), encoding="utf-8")
+        tracked = subprocess.CompletedProcess([], 0, stdout=(name + "\0").encode("utf-8"))
+        with patch("tools.check_public_tree.subprocess.run", return_value=tracked):
+            return check(root)
+
+    def test_symlink_above_repository_root_is_allowed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp).resolve()
+            root = parent / "actual" / "repository"
+            root.mkdir(parents=True)
+            (root / "example.md").write_text("Neutral example.", encoding="utf-8")
+            alias = parent / "alias"
+            self.make_symlink(alias, root.parent, directory=True)
+            self.assertEqual([], self.check_fixture(alias / "repository", "example.md"))
+
+    def test_symlink_at_repository_root_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp).resolve()
+            root = parent / "repository"
+            root.mkdir()
+            (root / "example.md").write_text("Neutral example.", encoding="utf-8")
+            alias = parent / "alias"
+            self.make_symlink(alias, root, directory=True)
+            self.assertIn("symlink in public inventory", self.check_fixture(alias, "example.md"))
+
+    def test_inventory_file_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp).resolve()
+            root = parent / "repository"
+            root.mkdir()
+            target = parent / "neutral.md"
+            target.write_text("Neutral example.", encoding="utf-8")
+            self.make_symlink(root / "example.md", target)
+            self.assertIn("symlink in public inventory", self.check_fixture(root, "example.md"))
+
+    def test_inventory_directory_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp).resolve()
+            root = parent / "repository"
+            root.mkdir()
+            target = parent / "neutral"
+            target.mkdir()
+            (target / "example.md").write_text("Neutral example.", encoding="utf-8")
+            self.make_symlink(root / "docs", target, directory=True)
+            self.assertIn("symlink in public inventory",
+                          self.check_fixture(root, "docs/example.md"))
+
 
 if __name__ == "__main__":
     unittest.main()
