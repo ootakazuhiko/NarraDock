@@ -30,7 +30,8 @@ The initial version is `0.1.0a1`; no installable package or release has been pub
 - [Audio publication #2](https://github.com/ootakazuhiko/NarraDock/issues/2)
 - [Isolation #3](https://github.com/ootakazuhiko/NarraDock/issues/3)
 - [License and administration #4](https://github.com/ootakazuhiko/NarraDock/issues/4)
+- [Core development #7](https://github.com/ootakazuhiko/NarraDock/issues/7) / [Codex handoff](docs/codex-handoff.md)
 
 ## License
 
-A software license has not yet been selected. Do not describe the product as licensed open-source software or publish a package under an assumed license. Dependency and media rights are independent decisions.
+The maintainer approved **NarraDock Source-Available License 1.0** on 2026-10-04. [Read the approved text and activation status](LICENSE.md). License selection is complete; the annexes and Article 20 activation remain incomplete. Do not claim an effective public license, publish a package under an assumed license, or invent fees. Dependency and contributor rights remain separate. This is not an OSI-approved open-source license.
