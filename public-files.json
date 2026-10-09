@@ -19,13 +19,17 @@
   "docs/license-status.json",
   "docs/project-isolation.md",
   "docs/roadmap.md",
+  "docs/synchronized-playback.md",
   "examples/audio-only.json",
+  "examples/timed-transcript.json",
   "examples/video-enabled.json",
   "licenses/NarraDock-Source-Available-1.0.ja.md",
   "narradock.py",
+  "narradock_transcript.py",
   "public-files.json",
   "tests/test_license_snapshot.py",
   "tests/test_narradock.py",
   "tests/test_public_tree.py",
+  "tests/test_transcript.py",
   "tools/check_public_tree.py"
 ]
