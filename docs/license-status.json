@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "license_name": "NarraDock Source-Available License 1.0",
+  "terms_status": "approved",
+  "decision_date": "2026-10-04",
+  "decision_authority": "repository_owner",
+  "approved_text": "licenses/NarraDock-Source-Available-1.0.ja.md",
+  "approved_text_sha256": "0744ff99f4ef6d5e6d0b1acef0cf375fd1b19b15494a4a5df9cedb491af2f15a",
+  "activation_status": "pending_annex_completion",
+  "effective_date": null,
+  "applicable_software_revision": null,
+  "public_license_grant_active": false,
+  "paid_order_acceptance_enabled": false,
+  "legal_review_completed": false,
+  "contributor_relicensing_rights_verified": false,
+  "annex_a_status": "not_completed",
+  "annex_b_status": "not_completed",
+  "maintainer_authorized_product_development": true
+}
