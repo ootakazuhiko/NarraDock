@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -172,7 +173,12 @@ def main(argv: list[str] | None = None) -> int:
                                  "external_transfer": False, "publication": False},
                                 sort_keys=True, indent=2) + "\n"
         sys.stdout.write(output)
+        sys.stdout.flush()
     except (TranscriptError, OSError, UnicodeError) as error:
+        if isinstance(error, OSError):
+            # Keep shutdown from retrying buffered data on a failed output stream.
+            with open(os.devnull, "w") as sink:
+                os.dup2(sink.fileno(), sys.stdout.fileno())
         message = str(error) if isinstance(error, TranscriptError) else "Output could not be written"
         print(f"Invalid transcript: {message}", file=sys.stderr)
         return 2

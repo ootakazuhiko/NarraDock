@@ -284,6 +284,33 @@ class TranscriptTests(unittest.TestCase):
             self.assertNotIn(b"private-value-marker", result.stderr)
             self.assertNotIn(b"sample-private-marker", result.stderr)
 
+    def test_cli_closed_pipe_has_safe_output_error(self):
+        large = copy.deepcopy(self.document)
+        large["cues"] = [
+            {"id": f"cue-{index}", "start_ms": index * 1000,
+             "end_ms": (index + 1) * 1000, "text": "x" * transcript.MAX_TEXT}
+            for index in range(6)
+        ]
+        for command, document in (("validate", self.document), ("vtt", self.document),
+                                  ("vtt", large)):
+            with self.subTest(command=command, text_length=len(document["cues"][0]["text"])):
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "sample.json"
+                    path.write_text(json.dumps(document), encoding="utf-8")
+                    read_fd, write_fd = os.pipe()
+                    os.close(read_fd)
+                    try:
+                        # Ignore PYTHONUNBUFFERED so small outputs exercise the flush.
+                        result = subprocess.run(
+                            [sys.executable, "-E", "-B", str(ROOT / "narradock_transcript.py"),
+                             command, str(path)], cwd=directory, stdout=write_fd,
+                            stderr=subprocess.PIPE, check=False, timeout=10)
+                    finally:
+                        os.close(write_fd)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertEqual([b"Invalid transcript: Output could not be written"],
+                                     result.stderr.splitlines())
+
     def test_main_in_process(self):
         output = io.StringIO()
         with patch("sys.stdout", output):
