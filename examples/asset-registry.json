@@ -1,0 +1,12 @@
+{
+  "schema_version": "asset-registry-0.1",
+  "project_id": "sample-project",
+  "assets": [
+    {
+      "asset_id": "sample-input",
+      "path": "inputs/example.dat",
+      "size_bytes": 23,
+      "sha256": "6ebac37f797e9aa5e7ee9e4492aa6daa407937b6a63bf0162235c627d6dcf503"
+    }
+  ]
+}
