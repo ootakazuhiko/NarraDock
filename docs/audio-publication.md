@@ -38,3 +38,11 @@ Timeout after submission is `unknown`, not automatically failed. Do not submit a
 ## Acceptance
 
 A synthetic audio-only release must pass without video tooling. Missing rights evidence, missing authority, changed fingerprints, cross-project access, and unresolved remote outcomes must block the affected operation. An integration PR must document source review, tests, limitations, and the exact scope that is implemented. No existing publication implementation has yet been imported or certified by this document.
+
+## Synchronized web playback and controlled delivery
+
+[The synchronized-playback specification](synchronized-playback.md) extends issue #2 with a provider-neutral timed transcript, standalone web-player requirements, and explicit restricted-delivery boundaries. It does not select a hosting provider or authorize deployment.
+
+The first executable increment is `narradock_transcript.py`: offline structural validation, caller-supplied reference-binding comparison, sidecar fingerprinting, and safe plain-text WebVTT output. Browser playback, actual media verification, packaging and access-control adapters remain unimplemented. The foundation manifest and its `package_only` restriction are unchanged.
+
+Restricted access means entitlement checks and scoped access to every protected resource, not a guarantee that an authorized listener cannot save or record audio. HLS and `nodownload` are not security boundaries by themselves. Transcript revisions join audio and metadata revisions in future candidate-bound review; real transcripts and operational evidence remain in isolated user workspaces.

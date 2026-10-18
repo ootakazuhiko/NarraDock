@@ -12,6 +12,8 @@ Implemented in the bootstrap: strict manifest validation, deterministic **symbol
 
 Also implemented: [project-local asset registries and byte verification](docs/asset-registry.md). The `narradock_assets.py` CLI separates registry structure validation (`validate`) from read-only asset resolution and streamed SHA-256/size verification (`verify`) beneath an explicitly supplied trusted project root. Verified bytes do not establish rights, media QA, or publication approval.
 
+The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; synchronized browser playback remains unimplemented. The digest and timing in `examples/timed-transcript.json` are placeholders.
+
 **Not implemented:** synthesis, media rendering, media QA, review UI, release packaging, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
 
 Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain placeholders, not verified media fingerprints. `examples/asset-registry.json` declares the hash and size of reproducible synthetic bytes described in the [asset registry example](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example); actual verification requires creating those bytes and running the verifier. Structural validation alone does not verify them.
