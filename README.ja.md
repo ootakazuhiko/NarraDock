@@ -8,6 +8,8 @@
 
 [プロジェクト別素材台帳と実バイト検証](docs/asset-registry.md)も実装済みです。`narradock_assets.py`の`validate`は台帳の構造を検証し、`verify`は明示した信頼するプロジェクトルート配下の素材を読み取り専用で解決し、実バイトのSHA-256とサイズを照合します。バイト検証の成功は権利確認、媒体QA、公開承認を意味しません。
 
+`narradock_transcript.py`には、[時刻付き文字起こしの契約](docs/synchronized-playback.md)を実装しています。構造検証、呼び出し側が提供する参照情報との照合、文字起こし全体の版を識別するハッシュ、プレーンテキストをエスケープしたWebVTT出力に対応します。実メディアのバイト検証や素材台帳との接続は行わず、ブラウザーでの同期再生は未実装です。`examples/timed-transcript.json`のハッシュと時刻は架空値です。
+
 音声合成、動画生成、実メディアQA、レビュー画面、公開パッケージ生成、アップロード、RSS生成、外部公開は未実装です。
 
 `examples/audio-only.json`と`examples/video-enabled.json`のハッシュは引き続き架空値です。`examples/asset-registry.json`には、[素材台帳の再現用サンプル](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example)で説明する合成バイト列のハッシュとサイズを記載しています。実バイトの検証には、そのバイト列の作成と検証処理の実行が必要で、構造検証だけでは一致を確認しません。

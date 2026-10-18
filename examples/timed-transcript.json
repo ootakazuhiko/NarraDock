@@ -1,0 +1,25 @@
+{
+  "schema_version": "timed-transcript-0.1",
+  "project_id": "sample-project",
+  "content_id": "sample-content",
+  "language": "en",
+  "audio": {
+    "asset_id": "sample-audio",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "duration_ms": 6000
+  },
+  "cues": [
+    {
+      "id": "cue-one",
+      "start_ms": 0,
+      "end_ms": 2000,
+      "text": "This is a synthetic transcript."
+    },
+    {
+      "id": "cue-two",
+      "start_ms": 2500,
+      "end_ms": 5500,
+      "text": "No real recording is associated with this example."
+    }
+  ]
+}
