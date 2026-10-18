@@ -1,0 +1,15 @@
+{
+  "schema_version": "audio-candidate-0.1",
+  "project_id": "sample-project",
+  "content_id": "sample-content",
+  "audio": {
+    "asset_id": "sample-input",
+    "size_bytes": 23,
+    "sha256": "6ebac37f797e9aa5e7ee9e4492aa6daa407937b6a63bf0162235c627d6dcf503"
+  },
+  "metadata": {
+    "title": "Neutral audio candidate",
+    "language": "en",
+    "credits": ["Synthetic example bytes"]
+  }
+}

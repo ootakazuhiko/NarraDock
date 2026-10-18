@@ -28,6 +28,8 @@ Production, technical QA, human review, candidate selection, external transfer, 
 
 Read [development prerequisites and validation](docs/development.md) before running the bootstrap CLI. The audio-only and video-enabled manifest examples demonstrate existing-audio reuse and a script-to-video proposal without contacting an audio engine or publisher.
 
+[Audio candidate records](docs/candidate-records.md) identify one asset and its delivery metadata as a selected revision, and can compare that revision with freshly verified asset bytes. The candidate CLI reads JSON from standard input. This implemented contract does not create a package or establish rights, media QA, human approval, transfer, or publication permission.
+
 The initial version is `0.1.0a1`; no installable package or release has been published. Runtime data must not be committed even when ignored files can be force-added.
 
 ## Work tracking
