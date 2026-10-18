@@ -157,9 +157,17 @@ Packaging must validate the bytes it actually consumes/copies and safely commit
 the output. Trusting this receipt and opening the file again would reintroduce
 a change-between-verification-and-use gap. This module intentionally offers no
 copy, package or export API and does not claim to solve that later boundary.
-Candidate-specific rights, technical QA and human decision records also remain
-future work. Changed metadata changes the fingerprint, but no approval database
-or automatic revocation mechanism is implemented here.
+The separate [local package API](local-packages.md) now validates caller-supplied
+candidate-bound rights, technical QA, human review and local-packaging decisions,
+then verifies the same bytes it copies. These records are caller assertions, not
+tool-performed reviews. Changed metadata changes the fingerprint, but no approval
+database or automatic revocation mechanism is implemented.
+
+`snapshot_candidate(document, project_id=...)` returns an independent validated
+dictionary for downstream consumers. Its nested audio, metadata and credits do
+not share mutable containers with the input. Taking this snapshot does not verify
+bytes or establish any decision; it lets the package API consistently identify,
+compare and serialize one revision.
 
 Tests use only neutral temporary bytes. They cover metadata changes, canonical
 identity, stale selections, project mixing, fresh verification after file

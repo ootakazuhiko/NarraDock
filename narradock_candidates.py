@@ -88,6 +88,11 @@ def validate_candidate(document: Any, *, project_id: str) -> None:
     _snapshot(document, project_id)
 
 
+def snapshot_candidate(document: Any, *, project_id: str) -> dict[str, Any]:
+    """Return an independent validated revision for downstream consumers."""
+    return _snapshot(document, project_id)
+
+
 def _fingerprint(snapshot: dict[str, Any]) -> str:
     encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":"), allow_nan=False).encode("utf-8")

@@ -9,7 +9,7 @@ NarraDock is a public personal product at `ootakazuhiko/NarraDock`. It is not an
 | Slice | Scope | Status |
 |---|---|---|
 | Foundation (#1) | Product docs, strict manifest validation, symbolic planning, neutral examples, CI | Bootstrap implementation proposed; follow PR/checks for live status |
-| Audio publication (#2) | Intake contract, local package, destination adapter, reconciliation | Direction and acceptance defined; not implemented |
+| Audio publication (#2) | Intake contract, local package, destination adapter, reconciliation | Offline candidate-bound local packaging implemented; destination adapters and reconciliation pending |
 | Isolation (#3) | Public-file checks, asset/credential boundaries, independent acceptance | Limited static checks proposed; runtime isolation pending |
 | Maintainer setup (#4) | License activation, rules, security intake, distribution decisions | License terms approved; activation and remaining administration pending |
 | Media execution | Existing-audio import, synthesis/render adapters, measured QA, review | Planned; separate scoped PRs required |
