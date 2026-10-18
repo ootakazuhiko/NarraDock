@@ -10,7 +10,13 @@ NarraDock is a public personal product for reusable media-production workflows. 
 
 Implemented in the bootstrap: strict manifest validation, deterministic **symbolic planning**, neutral examples, unit tests, and a public-source inventory check. Python 3.11+ and Git are sufficient for these checks; no third-party Python packages are required.
 
-**Not implemented:** asset resolution/hash verification, synthesis, media rendering, media QA, review UI, release packaging, upload, RSS generation, or publication. Plan entries name future operations; the CLI never performs them and never records approval. Example hashes are placeholders, not verified media fingerprints.
+Also implemented: [project-local asset registries and byte verification](docs/asset-registry.md). The `narradock_assets.py` CLI separates registry structure validation (`validate`) from read-only asset resolution and streamed SHA-256/size verification (`verify`) beneath an explicitly supplied trusted project root. Verified bytes do not establish rights, media QA, or publication approval.
+
+The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; synchronized browser playback remains unimplemented. The digest and timing in `examples/timed-transcript.json` are placeholders.
+
+**Not implemented:** synthesis, media rendering, media QA, review UI, release packaging, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
+
+Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain placeholders, not verified media fingerprints. `examples/asset-registry.json` declares the hash and size of reproducible synthetic bytes described in the [asset registry example](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example); actual verification requires creating those bytes and running the verifier. Structural validation alone does not verify them.
 
 ## Product boundaries
 
@@ -20,7 +26,7 @@ Production, technical QA, human review, candidate selection, external transfer, 
 
 ## Development entry
 
-Read [development prerequisites and validation](docs/development.md) before running the bootstrap CLI. The two examples demonstrate existing-audio reuse and a script-to-video proposal without contacting an audio engine or publisher.
+Read [development prerequisites and validation](docs/development.md) before running the bootstrap CLI. The audio-only and video-enabled manifest examples demonstrate existing-audio reuse and a script-to-video proposal without contacting an audio engine or publisher.
 
 The initial version is `0.1.0a1`; no installable package or release has been published. Runtime data must not be committed even when ignored files can be force-added.
 
