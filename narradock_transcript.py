@@ -101,6 +101,55 @@ def require_binding(document: Any, expected: Any) -> None:
         raise TranscriptError("Transcript binding mismatch")
 
 
+def _primitive_record(value: Any, fields: dict[str, type]) -> dict[str, Any]:
+    if type(value) is not dict or len(value) != len(fields) or set(value) != set(fields):
+        raise TranscriptError("Invalid transcript snapshot fields")
+    result = {key: value[key] for key in fields}
+    if any(type(result[key]) is not kind for key, kind in fields.items()):
+        raise TranscriptError("Invalid transcript snapshot types")
+    return result
+
+
+def snapshot_transcript(document: Any) -> dict[str, Any]:
+    """Return an independent validated snapshot using exact built-in primitives."""
+    try:
+        snapshot = _primitive_record(document, {"schema_version": str, "project_id": str,
+            "content_id": str, "language": str, "audio": dict, "cues": list})
+        snapshot["audio"] = _primitive_record(snapshot["audio"],
+            {"asset_id": str, "sha256": str, "duration_ms": int})
+        cues = snapshot["cues"]
+        if not 1 <= len(cues) <= MAX_CUES:
+            raise TranscriptError("Invalid cue count")
+        # A bounded copy also limits allocation if the caller changes the list.
+        snapshot["cues"] = [_primitive_record(cue,
+            {"id": str, "start_ms": int, "end_ms": int, "text": str})
+            for cue in cues[:MAX_CUES + 1]]
+        validate(snapshot)
+        return snapshot
+    except TranscriptError:
+        raise
+    except (KeyError, TypeError, ValueError, RuntimeError):
+        raise TranscriptError("Transcript could not be snapshotted") from None
+
+
+def canonical_transcript_bytes(document: Any) -> bytes:
+    """Encode an independent revision, enforcing the 2 MiB cap during encoding.
+
+    Existing standalone in-memory APIs retain their count/text limits. Consumers
+    that persist a transcript can use this stricter bounded canonical form.
+    """
+    snapshot = snapshot_transcript(document)
+    encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True,
+                               separators=(",", ":"), allow_nan=False)
+    data = bytearray()
+    for part in encoder.iterencode(snapshot):
+        encoded = part.encode("utf-8")
+        if len(data) + len(encoded) > MAX_BYTES:
+            raise TranscriptError("Transcript exceeds canonical size limit")
+        data.extend(encoded)
+    return bytes(data)
+
+
 def fingerprint(document: Any) -> str:
     """Identify this complete sidecar revision, without granting approval."""
     validate(document)

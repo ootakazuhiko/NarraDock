@@ -6,7 +6,9 @@ Tracking: #2; foundation dependency: #1. This is a provider-neutral capability s
 
 The first increment implements `narradock_transcript.py`, a standalone offline sidecar validator, reference-binding comparison, revision fingerprint, and plain-text WebVTT exporter. `examples/timed-transcript.json` contains newly authored synthetic text, fictional timing, and a placeholder digest. No associated recording exists.
 
-Not implemented: alignment, audio decoding or hash verification, a browser player, media packaging, asset-registry isolation, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. This increment does not change the foundation manifest schema or its `package_only` planning restriction. Valid JSON is neither approved content nor a release package.
+The separate [local package API](local-packages.md) now binds one transcript to an `audio-candidate-0.2`, verifies the audio bytes it copies through the asset registry, and includes canonical transcript JSON and escaped WebVTT in an allowlisted ZIP. The standalone transcript validator still does no media I/O. Its structure/binding results alone are neither approved content nor a release package.
+
+Not implemented: alignment, measured audio duration/QA, a browser player, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
 
 ## Timed-transcript contract
 
@@ -15,7 +17,7 @@ Not implemented: alignment, audio decoding or hash verification, a browser playe
 | `schema_version` | Exactly `timed-transcript-0.1`; independent of the foundation manifest version |
 | `project_id`, `content_id` | Opaque scoped identifiers, not paths or URLs |
 | `language` | Restricted language-tag shape; not full BCP 47 registry validation |
-| `audio.asset_id` | Opaque candidate reference, resolved only by a future trusted registry |
+| `audio.asset_id` | Opaque candidate reference; resolved through the registry by the package API, never by this standalone validator |
 | `audio.sha256` | Lowercase SHA-256 shape; the offline validator does not read media bytes |
 | `audio.duration_ms` | Positive integer presentation duration, at most 24 hours |
 | `cues` | 1 to 10,000 chronologically ordered, non-overlapping cues |
@@ -25,13 +27,15 @@ Not implemented: alignment, audio decoding or hash verification, a browser playe
 
 Identifiers use lowercase letters/digits separated by hyphens, begin with a letter, and have at most 64 characters. Language tags have at most 20 characters. Control, format, surrogate and other Unicode category-C characters, as well as Unicode line/paragraph separators, are rejected in cue text. Markup-looking characters remain literal text. This is a deliberately narrow initial contract, not a general WebVTT parser.
 
-Unknown or missing fields, duplicate JSON keys at every level, non-finite JSON constants, invalid UTF-8, files larger than 2 MiB, empty cues, duplicate identifiers, invalid timings, and overlaps fail closed. The byte limit applies to the file loader; in-memory calls enforce the structural/count/text limits. The exporter escapes `&`, `<`, and `>` and preserves integer-millisecond timestamps. It never treats supplied text as HTML or WebVTT markup.
+Unknown or missing fields, duplicate JSON keys at every level, non-finite JSON constants, invalid UTF-8, files larger than 2 MiB, empty cues, duplicate identifiers, invalid timings, and overlaps fail closed. The file loader has a byte limit; legacy in-memory validation/fingerprint/WebVTT calls enforce structural/count/text limits. The exporter escapes `&`, `<`, and `>` and preserves integer-millisecond timestamps. It never treats supplied text as HTML or WebVTT markup.
+
+`snapshot_transcript(document)` returns an independent validated copy of root, audio, cue list and cue records. It accepts exact built-in dictionaries/lists/strings/integers rather than custom subclasses, avoiding caller copy hooks. `canonical_transcript_bytes(document)` snapshots and encodes canonical UTF-8 JSON incrementally, rejecting output above 2 MiB before allocating a complete oversized representation. Its SHA-256 matches `fingerprint` for the same revision. These helpers open no paths and leave existing sidecar fingerprints and WebVTT output unchanged. The package API uses them before source/output I/O and caps derived WebVTT at 10 MiB.
 
 Gaps are valid: no cue is active during leading silence, between cues, or after the final cue. The player contract uses half-open intervals `[start_ms, end_ms)`. At an adjacent boundary the following cue is active, never both. Cues are not silently reordered or retimed. Stable cue IDs are for navigation; a text change must still change the revision fingerprint.
 
 `require_binding(document, expected)` compares project ID, content ID, candidate asset ID, declared audio digest, and declared duration. The caller must obtain `expected` from an independently trusted registry. The comparison does not authorize filesystem access or prove that bytes match the declaration; copying the transcript's own fields into `expected` is not verification.
 
-`fingerprint(document)` hashes canonical JSON for the entire validated sidecar, including text, timing, scope, language and audio reference. A future review decision must bind this fingerprint, independently verified final audio, and the exact publication metadata revision. The fingerprint alone does not cover separate metadata, prove rights, or grant permission. Any relevant change invalidates the affected review decisions.
+`fingerprint(document)` hashes canonical JSON for the entire validated sidecar, including text, timing, scope, language and audio reference. An `audio-candidate-0.2` includes this fingerprint, independently declared audio duration, byte identity, and delivery metadata. Candidate-bound package decisions therefore cover the selected sidecar revision too. The sidecar fingerprint alone does not cover separate metadata, prove rights, or grant permission. Any relevant change requires matching decisions. Actual duration and alignment remain caller-reviewed declarations, not measurements performed by this API.
 
 ## Timing production contract (future implementation)
 
@@ -80,7 +84,7 @@ No production endpoint, account, credential, CDN, payment service or hosting des
 |---|---|---|
 | Timed-transcript contract | Synthetic validation, binding mismatch, deterministic fingerprint, safe VTT and CLI tests | Implemented in this change |
 | Standalone player | Synthetic-only page; highlighting, gaps, seek, rate, pause/resume, manual-scroll and accessibility tests | Planned |
-| Candidate-aware packaging | Independently verified media/timeline, sidecar and metadata revision binding, allowlisted package, private receipt | Planned |
+| Candidate-aware packaging | Verified audio bytes, sidecar and metadata revision binding, allowlisted package, private receipt; separately reviewed timeline QA | Offline package implemented; measured timeline QA remains pending |
 | Restricted adapter | Explicit destination and entitlement model; denied unauthenticated/cross-scope/cache/origin requests; expiry/renewal tests | Planned |
 | Reviewed pilot | Explicit environment and separate transfer/activation authority, selected-browser checks, reconciliation and rollback evidence | Not authorized |
 

@@ -12,8 +12,10 @@ from typing import Any, BinaryIO
 import unicodedata
 
 from narradock_assets import AssetError, MAX_ASSET_BYTES, load_registry, verify_asset
+from narradock_transcript import MAX_DURATION_MS
 
 SCHEMA_VERSION = "audio-candidate-0.1"
+TRANSCRIPT_SCHEMA_VERSION = "audio-candidate-0.2"
 MAX_CANDIDATE_BYTES = 64 * 1024
 MAX_TEXT_LENGTH = 200
 MAX_CREDITS = 16
@@ -50,16 +52,21 @@ def _text(value: Any) -> bool:
 def _snapshot(document: Any, project_id: str) -> dict[str, Any]:
     """Copy validated primitive fields; callers cannot mutate this revision later."""
     try:
-        _fields(document, {"schema_version", "project_id", "content_id", "audio", "metadata"})
-        schema, project, content = (document["schema_version"], document["project_id"],
-                                    document["content_id"])
+        if type(document) is not dict:
+            raise CandidateError("Invalid candidate fields")
+        schema = document.get("schema_version")
+        if type(schema) is not str or schema not in {SCHEMA_VERSION, TRANSCRIPT_SCHEMA_VERSION}:
+            raise CandidateError("Unsupported candidate schema")
+        has_transcript = schema == TRANSCRIPT_SCHEMA_VERSION
+        _fields(document, {"schema_version", "project_id", "content_id", "audio", "metadata"}
+                | ({"transcript"} if has_transcript else set()))
+        project, content = document["project_id"], document["content_id"]
         audio, metadata = document["audio"], document["metadata"]
-        _fields(audio, {"asset_id", "size_bytes", "sha256"})
+        _fields(audio, {"asset_id", "size_bytes", "sha256"}
+                | ({"duration_ms"} if has_transcript else set()))
         _fields(metadata, {"title", "language", "credits"})
         asset, size, digest = audio["asset_id"], audio["size_bytes"], audio["sha256"]
         title, language, credits = metadata["title"], metadata["language"], metadata["credits"]
-        if type(schema) is not str or schema != SCHEMA_VERSION:
-            raise CandidateError("Unsupported candidate schema")
         if not all(_identifier(value) for value in (project_id, project, content, asset)):
             raise CandidateError("Invalid candidate identifier")
         if project != project_id:
@@ -74,9 +81,18 @@ def _snapshot(document: Any, project_id: str) -> dict[str, Any]:
         if (len(credits) > MAX_CREDITS or not all(_text(credit) for credit in credits)
                 or len(set(credits)) != len(credits)):
             raise CandidateError("Invalid candidate credits")
-        return {"schema_version": schema, "project_id": project, "content_id": content,
-                "audio": {"asset_id": asset, "size_bytes": size, "sha256": digest},
-                "metadata": {"title": title, "language": language, "credits": credits}}
+        snapshot = {"schema_version": schema, "project_id": project, "content_id": content,
+                    "audio": {"asset_id": asset, "size_bytes": size, "sha256": digest},
+                    "metadata": {"title": title, "language": language, "credits": credits}}
+        if has_transcript:
+            sidecar = document["transcript"]
+            _fields(sidecar, {"fingerprint"})
+            duration, revision = audio["duration_ms"], sidecar["fingerprint"]
+            if type(duration) is not int or not 1 <= duration <= MAX_DURATION_MS or not _digest(revision):
+                raise CandidateError("Invalid candidate transcript declaration")
+            snapshot["audio"]["duration_ms"] = duration
+            snapshot["transcript"] = {"fingerprint": revision}
+        return snapshot
     except CandidateError:
         raise
     except (KeyError, TypeError, ValueError, RuntimeError):

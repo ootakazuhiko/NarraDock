@@ -32,7 +32,7 @@ Read [development prerequisites and validation](docs/development.md) before runn
 
 The initial version is `0.1.0a1`; no installable package or release has been published. Runtime data must not be committed even when ignored files can be force-added.
 
-[Local audio packaging](docs/local-packages.md) is available through the `narradock_packages.py` Python API. It requires candidate-bound caller decisions, verifies the bytes it copies, and creates a fixed-member ZIP without overwriting existing output. Decision records are caller assertions; this API does not authenticate them or perform rights review, media QA, transfer or publication. Transcript packaging remains unimplemented.
+[Local audio packaging](docs/local-packages.md) is available through the `narradock_packages.py` Python API. It requires candidate-bound caller decisions, verifies the bytes it copies, and creates a fixed-member ZIP without overwriting existing output. Version 0.2 candidates bind one timed transcript and its declared audio duration; packages include canonical transcript JSON and escaped WebVTT. Existing audio-only 0.1 output is preserved. Decision records are caller assertions; this API does not authenticate them or perform rights review, media QA, duration/alignment measurement, transfer or publication.
 
 ## Work tracking
 
