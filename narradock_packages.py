@@ -148,8 +148,8 @@ def create_audio_package(document: Any, *, project_id: str, expected_fingerprint
         # Candidate/decision/transcript gates precede source and output filesystem I/O.
         directory = _output_directory(output_directory, project_root)
         final = directory / (fingerprint + ".zip")
-        descriptor, name = tempfile.mkstemp(prefix=".narradock-", suffix=".tmp", dir=directory)
-        staging = Path(name)
+        descriptor, staging_name = tempfile.mkstemp(prefix=".narradock-", suffix=".tmp", dir=directory)
+        staging = Path(staging_name)
         try:
             stream = os.fdopen(descriptor, "w+b")
         except BaseException:
@@ -165,14 +165,14 @@ def create_audio_package(document: Any, *, project_id: str, expected_fingerprint
                     raise PackageError("Candidate asset declaration mismatch")
                 metadata = _canonical(candidate)
                 archive.writestr(_entry("candidate.json"), metadata)
-                for name, data in sidecars.items():
-                    archive.writestr(_entry(name), data)
+                for member, data in sidecars.items():
+                    archive.writestr(_entry(member), data)
                 manifest = {"schema_version": TRANSCRIPT_SCHEMA_VERSION if sidecars else SCHEMA_VERSION,
                             "project_id": project_id,
                             "content_id": candidate["content_id"], "candidate_fingerprint": fingerprint,
                             "files": {"audio.bin": {key: measured[key] for key in ("size_bytes", "sha256")},
                                       "candidate.json": _file_record(metadata)}}
-                manifest["files"].update({name: _file_record(data) for name, data in sidecars.items()})
+                manifest["files"].update({member: _file_record(data) for member, data in sidecars.items()})
                 archive.writestr(_entry("manifest.json"), _canonical(manifest))
             stream.flush()
             os.fsync(stream.fileno())
