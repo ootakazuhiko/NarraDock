@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import stat
 import sys
-from typing import Any
+from typing import Any, BinaryIO
 
 SCHEMA_VERSION = "asset-registry-0.1"
 MAX_REGISTRY_BYTES = 256 * 1024
@@ -279,9 +279,8 @@ def _asset_fd(root: Path, parts: tuple[str, ...]):
                 raise AssetError("Filesystem object changed during verification")
 
 
-def verify_asset(document: Any, *, project_root: Path, project_id: str,
-                 asset_id: str) -> dict[str, Any]:
-    """Verify one declared asset's bytes now; never cache or return a reusable path."""
+def _consume_asset(document: Any, *, project_root: Path, project_id: str,
+                   asset_id: str, destination: BinaryIO | None) -> dict[str, Any]:
     try:
         entries = _entries(document, project_id)
         if not _identifier(asset_id) or asset_id not in entries:
@@ -297,7 +296,16 @@ def verify_asset(document: Any, *, project_root: Path, project_id: str,
                 if not chunk:
                     break
                 total += len(chunk)
+                if total > size:
+                    raise AssetError("Asset size mismatch")
                 digest.update(chunk)
+                if destination is not None:
+                    offset = 0
+                    while offset < len(chunk):
+                        written = destination.write(chunk[offset:])
+                        if type(written) is not int or not 0 < written <= len(chunk) - offset:
+                            raise AssetError("Asset destination write failed")
+                        offset += written
             if total != size:
                 raise AssetError("Asset size mismatch")
             actual = digest.hexdigest()
@@ -311,6 +319,32 @@ def verify_asset(document: Any, *, project_root: Path, project_id: str,
         raise
     except (OSError, ValueError, TypeError, RecursionError):
         raise AssetError("Asset could not be verified") from None
+
+
+def verify_asset(document: Any, *, project_root: Path, project_id: str,
+                 asset_id: str) -> dict[str, Any]:
+    """Verify one declared asset's bytes now; never cache or return a reusable path."""
+    return _consume_asset(document, project_root=project_root, project_id=project_id,
+                          asset_id=asset_id, destination=None)
+
+
+def copy_verified_asset(document: Any, *, project_root: Path, project_id: str,
+                        asset_id: str, destination: BinaryIO) -> dict[str, Any]:
+    """Copy and hash the same reads; destination bytes are tentative until success.
+
+    The trusted caller supplies a private quarantine sink and must discard its
+    contents on failure. This function neither flushes nor closes that sink.
+    """
+    try:
+        if destination is None or not callable(getattr(destination, "write", None)):
+            raise AssetError("Invalid asset destination")
+        result = _consume_asset(document, project_root=project_root, project_id=project_id,
+                                asset_id=asset_id, destination=destination)
+    except AssetError:
+        raise
+    except (OSError, ValueError, TypeError, RuntimeError):
+        raise AssetError("Asset could not be copied") from None
+    return {**result, "copied": True}
 
 
 class _Parser(argparse.ArgumentParser):

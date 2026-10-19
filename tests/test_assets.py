@@ -2,6 +2,7 @@
 import copy
 import errno
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -76,6 +77,82 @@ class AssetTests(unittest.TestCase):
         self.assertNotIn("path", result)
         self.assertEqual(before, self.document)
         self.assertEqual(self.data, self.file.read_bytes())
+
+    def copy_asset(self, sink):
+        return assets.copy_verified_asset(self.document, project_root=self.root,
+            project_id="project-one", asset_id="sample-input", destination=sink)
+
+    def test_copy_short_writes_and_caller_owned_stream(self):
+        class ShortSink(io.BytesIO):
+            def write(self, data):
+                return super().write(data[:3])
+        sink = ShortSink()
+        result = self.copy_asset(sink)
+        self.assertFalse(sink.closed)
+        self.assertEqual(self.data, sink.getvalue())
+        self.assertIs(True, result.pop("copied"))
+        self.assertEqual(self.verify(), result)
+
+    def test_copy_invalid_write_results_stop_immediately(self):
+        for value in (None, 0, -1, True, len(self.data) + 1, "written"):
+            with self.subTest(value=value):
+                class Sink:
+                    calls = 0
+                    def write(inner, data):
+                        inner.calls += 1
+                        return value
+                sink = Sink()
+                with self.assertRaises(assets.AssetError):
+                    self.copy_asset(sink)
+                self.assertEqual(1, sink.calls)
+        for sink in (None, object()):
+            with self.assertRaises(assets.AssetError):
+                self.copy_asset(sink)
+
+    def test_copy_write_error_has_fixed_diagnostic(self):
+        class Sink:
+            def write(self, data):
+                raise OSError("private sink details")
+        with self.assertRaises(assets.AssetError) as error:
+            self.copy_asset(Sink())
+        self.assertNotIn("private", str(error.exception))
+
+    def test_copy_custom_sink_runtime_errors_are_sanitized(self):
+        class FailingWrite:
+            def write(self, data):
+                raise RuntimeError("private writer details")
+        class FailingProperty:
+            @property
+            def write(self):
+                raise RuntimeError("private property details")
+        for sink in (FailingWrite(), FailingProperty()):
+            with self.assertRaises(assets.AssetError) as error:
+                self.copy_asset(sink)
+            self.assertNotIn("private", str(error.exception))
+
+    def test_copy_digest_failure_leaves_only_tentative_bytes(self):
+        self.document["assets"][0]["sha256"] = "0" * 64
+        sink = io.BytesIO()
+        with self.assertRaisesRegex(assets.AssetError, "digest mismatch"):
+            self.copy_asset(sink)
+        self.assertFalse(sink.closed)
+        self.assertEqual(self.data, sink.getvalue())
+
+    def test_copy_rejects_source_mutation_during_write(self):
+        class Sink(io.BytesIO):
+            def write(inner, data):
+                # POSIX detects modification; Windows denies the write itself.
+                self.file.write_bytes(b"x" * len(self.data))
+                return super().write(data)
+        with self.assertRaises(assets.AssetError):
+            self.copy_asset(Sink())
+
+    def test_copy_never_forwards_overflow_probe(self):
+        sink = io.BytesIO()
+        with patch("narradock_assets.os.read", side_effect=[self.data, b"x"]):
+            with self.assertRaisesRegex(assets.AssetError, "size mismatch"):
+                self.copy_asset(sink)
+        self.assertEqual(self.data, sink.getvalue())
 
     def test_empty_and_multichunk_assets(self):
         for data in (b"", b"z" * (assets.CHUNK_BYTES * 3 + 17)):

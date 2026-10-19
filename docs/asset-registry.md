@@ -84,8 +84,18 @@ do not use sensitive content as labels. No resolved filename is returned.
 
 The receipt is an observation of the bytes just read. It is not a reusable file
 handle, immutable snapshot, permission token, or guarantee about a later open.
-Reverify at the point of consumption; binding verified bytes to a later renderer
-or immutable release package is a separate implementation.
+Reverify at the point of consumption; a receipt alone cannot bind a later read.
+
+`copy_verified_asset(document, project_root=..., project_id=..., asset_id=...,
+destination=...)` hashes and copies the same guarded reads to a caller-owned binary
+sink. It returns the verification receipt plus `copied=true` only after all source
+checks pass. The sink must be a trusted private quarantine destination, never a
+public stream or network endpoint. Short writes are completed; invalid write
+results and write failures raise `AssetError`. The function does not flush or
+close the sink. Its bytes remain tentative until success and must be discarded on
+any failure, even if the full declared length was written. The
+[local package API](local-packages.md) supplies staging and finalization for this
+primitive. Neither API authorizes transfer or publication.
 
 ## CLI and a reproducible synthetic example
 

@@ -8,6 +8,8 @@ Audio-only output must not depend on a renderer, presenter image, video channel,
 
 The bootstrap only validates and plans. It does not verify actual audio, create a package, generate a feed, contact a host, or change public visibility.
 
+The separate [local audio package API](local-packages.md) now creates a fixed-member ZIP from a selected candidate, verified copied bytes and candidate-bound caller decisions. It records their binding without authenticating decision makers or performing rights/QA review. Hosting, transfer and publication remain unimplemented.
+
 ## Integration intake
 
 A publishing contributor should supply a neutral capability description and independently reviewable code, not operational project records.
@@ -43,6 +45,6 @@ A synthetic audio-only release must pass without video tooling. Missing rights e
 
 [The synchronized-playback specification](synchronized-playback.md) extends issue #2 with a provider-neutral timed transcript, standalone web-player requirements, and explicit restricted-delivery boundaries. It does not select a hosting provider or authorize deployment.
 
-The first executable increment is `narradock_transcript.py`: offline structural validation, caller-supplied reference-binding comparison, sidecar fingerprinting, and safe plain-text WebVTT output. Browser playback, actual media verification, packaging and access-control adapters remain unimplemented. The foundation manifest and its `package_only` restriction are unchanged.
+The first executable increment is `narradock_transcript.py`: offline structural validation, caller-supplied reference-binding comparison, sidecar fingerprinting, and safe plain-text WebVTT output. Browser playback, binding transcript timing to actual media, transcript packaging and access-control adapters remain unimplemented. The foundation manifest and its `package_only` restriction are unchanged.
 
 Restricted access means entitlement checks and scoped access to every protected resource, not a guarantee that an authorized listener cannot save or record audio. HLS and `nodownload` are not security boundaries by themselves. Transcript revisions join audio and metadata revisions in future candidate-bound review; real transcripts and operational evidence remain in isolated user workspaces.

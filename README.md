@@ -14,7 +14,7 @@ Also implemented: [project-local asset registries and byte verification](docs/as
 
 The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; synchronized browser playback remains unimplemented. The digest and timing in `examples/timed-transcript.json` are placeholders.
 
-**Not implemented:** synthesis, media rendering, media QA, review UI, release packaging, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
+**Not implemented:** synthesis, media rendering, media QA, review UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
 
 Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain placeholders, not verified media fingerprints. `examples/asset-registry.json` declares the hash and size of reproducible synthetic bytes described in the [asset registry example](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example); actual verification requires creating those bytes and running the verifier. Structural validation alone does not verify them.
 
@@ -31,6 +31,8 @@ Read [development prerequisites and validation](docs/development.md) before runn
 [Audio candidate records](docs/candidate-records.md) identify one asset and its delivery metadata as a selected revision, and can compare that revision with freshly verified asset bytes. The candidate CLI reads JSON from standard input. This implemented contract does not create a package or establish rights, media QA, human approval, transfer, or publication permission.
 
 The initial version is `0.1.0a1`; no installable package or release has been published. Runtime data must not be committed even when ignored files can be force-added.
+
+[Local audio packaging](docs/local-packages.md) is available through the `narradock_packages.py` Python API. It requires candidate-bound caller decisions, verifies the bytes it copies, and creates a fixed-member ZIP without overwriting existing output. Decision records are caller assertions; this API does not authenticate them or perform rights review, media QA, transfer or publication. Transcript packaging remains unimplemented.
 
 ## Work tracking
 
