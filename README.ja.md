@@ -10,7 +10,9 @@
 
 `narradock_transcript.py`には、[時刻付き文字起こしの契約](docs/synchronized-playback.md)を実装しています。構造検証、呼び出し側が提供する参照情報との照合、文字起こし全体の版を識別するハッシュ、プレーンテキストをエスケープしたWebVTT出力に対応します。実メディアのバイト検証や素材台帳との接続は行わず、ブラウザーでの同期再生は未実装です。`examples/timed-transcript.json`のハッシュと時刻は架空値です。
 
-音声合成、動画生成、実メディアQA、レビュー画面、アップロード、RSS生成、外部公開は未実装です。
+[PCM WAV測定API](docs/audio-measurements.md)では、候補の実バイトを検証しながらフレーム数・音声長・サンプルピーク・端点値のサンプル数・全チャンネルがゼロのフレーム数を測定します。候補形式0.2では申告した音声長とも比較します。対応WAV形式は限定され、測定成功を媒体QAの合格とは扱いません。
+
+音声合成、動画生成、総合的な媒体QA、レビュー画面、アップロード、RSS生成、外部公開は未実装です。
 
 `examples/audio-only.json`と`examples/video-enabled.json`のハッシュは引き続き架空値です。`examples/asset-registry.json`には、[素材台帳の再現用サンプル](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example)で説明する合成バイト列のハッシュとサイズを記載しています。実バイトの検証には、そのバイト列の作成と検証処理の実行が必要で、構造検証だけでは一致を確認しません。
 

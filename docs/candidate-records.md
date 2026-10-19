@@ -201,3 +201,7 @@ changes, a stable candidate snapshot, bounded/strict input and private
 diagnostics. Run the full existing validation sequence and Linux/Windows CI.
 No additional packages, providers, real media or Windows workstation acceptance
 are needed or claimed.
+
+## Separate PCM measurements
+
+The [PCM WAV measurement API](audio-measurements.md) measures verified candidate bytes for a limited 16-bit PCM profile and compares actual frame duration with candidate 0.2 declared duration. It does not verify transcript alignment or approve media QA. This contract and its existing behavior remain unchanged; packaging does not automatically consume measurement results.
