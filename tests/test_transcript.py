@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import os
@@ -35,6 +36,57 @@ class TranscriptTests(unittest.TestCase):
         transcript.fingerprint(self.document)
         transcript.to_webvtt(self.document)
         self.assertEqual(before, self.document)
+
+    def test_snapshot_has_independent_audio_and_cue_containers(self):
+        snapshot = transcript.snapshot_transcript(self.document)
+        self.assertEqual(self.document, snapshot)
+        self.document["audio"]["duration_ms"] = 1
+        self.document["cues"][0]["text"] = "Changed original"
+        self.document["cues"].clear()
+        self.assertEqual(6000, snapshot["audio"]["duration_ms"])
+        self.assertEqual(2, len(snapshot["cues"]))
+        self.assertNotEqual("Changed original", snapshot["cues"][0]["text"])
+
+    def test_snapshot_rejects_custom_types_without_hooks(self):
+        class CustomDict(dict):
+            def __deepcopy__(self, memo):
+                raise AssertionError("Must not invoke caller hook")
+        class CustomText(str):
+            pass
+        class CustomList(list):
+            pass
+        for document in (CustomDict(self.document), dict(self.document, cues=CustomList()),
+                         dict(self.document, audio=CustomDict(self.document["audio"])),
+                         dict(self.document, cues=[CustomDict(self.document["cues"][0])]),
+                         dict(self.document, language=CustomText("en"))):
+            with self.assertRaises(transcript.TranscriptError):
+                transcript.snapshot_transcript(document)
+        self.document["cues"][0]["start_ms"] = True
+        with self.assertRaises(transcript.TranscriptError):
+            transcript.snapshot_transcript(self.document)
+
+    def test_canonical_bytes_match_existing_full_revision(self):
+        self.document["cues"][0]["text"] = "合成 e\u0301 & <b>例</b>"
+        encoded = transcript.canonical_transcript_bytes(self.document)
+        self.assertEqual(self.document, json.loads(encoded))
+        self.assertIn("合成 e\u0301".encode(), encoded)
+        self.assertEqual(transcript.fingerprint(self.document), hashlib.sha256(encoded).hexdigest())
+        self.assertFalse(encoded.endswith(b"\n"))
+
+    def test_canonical_limit_counts_utf8_bytes_including_exact_boundary(self):
+        self.document["cues"][0]["text"] = "合成文字"
+        encoded = transcript.canonical_transcript_bytes(self.document)
+        with patch.object(transcript, "MAX_BYTES", len(encoded)):
+            self.assertEqual(encoded, transcript.canonical_transcript_bytes(self.document))
+        with patch.object(transcript, "MAX_BYTES", len(encoded) - 1):
+            with self.assertRaisesRegex(transcript.TranscriptError, "canonical size limit"):
+                transcript.canonical_transcript_bytes(self.document)
+
+    def test_snapshot_still_applies_existing_semantic_validation(self):
+        self.document["cues"][1]["start_ms"] = 0
+        for call in (transcript.snapshot_transcript, transcript.canonical_transcript_bytes):
+            with self.assertRaises(transcript.TranscriptError):
+                call(self.document)
 
     def test_top_level_unknown_and_missing_fields(self):
         for key in self.document:

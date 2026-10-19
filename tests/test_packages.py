@@ -12,6 +12,7 @@ import zipfile
 import narradock_assets as assets
 import narradock_candidates as candidates
 import narradock_packages as packages
+import narradock_transcript as transcripts
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -49,6 +50,23 @@ class PackageTests(unittest.TestCase):
 
     def final_path(self, directory=None):
         return (self.output if directory is None else directory) / (self.fingerprint + ".zip")
+
+    def transcript_document(self):
+        return {"schema_version": transcripts.SCHEMA_VERSION, "project_id": self.project,
+            "content_id": self.candidate["content_id"], "language": "en",
+            "audio": {"asset_id": "sample-input", "sha256": hashlib.sha256(self.data).hexdigest(),
+                      "duration_ms": 6000},
+            "cues": [{"id": "first-cue", "start_ms": 500, "end_ms": 1500,
+                      "text": '<b>A & B</b> --> &lt; "quote"'},
+                     {"id": "second-cue", "start_ms": 2500, "end_ms": 5500,
+                      "text": "Neutral second cue."}]}
+
+    def select_transcript(self, sidecar):
+        self.candidate["schema_version"] = candidates.TRANSCRIPT_SCHEMA_VERSION
+        self.candidate["audio"]["duration_ms"] = 6000
+        self.candidate["transcript"] = {"fingerprint": transcripts.fingerprint(sidecar)}
+        self.fingerprint = candidates.candidate_fingerprint(self.candidate, project_id=self.project)
+        self.decisions["candidate_fingerprint"] = self.fingerprint
 
     def reject_without_io(self, **kwargs):
         with patch("narradock_packages.copy_verified_asset") as consume, \
@@ -90,6 +108,164 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn(self.candidate["metadata"]["title"], json.dumps(result))
         self.assertEqual([self.final_path()], list(self.output.iterdir()))
         self.assertEqual(self.data, self.asset.read_bytes())
+
+    def test_audio_only_version_one_compatibility_golden(self):
+        # Captured from the merged audio-only implementation before this extension.
+        result = self.build()
+        self.assertEqual("5e874d274267a05520e292c13b691d5ecec9e99a04cf7e4cad70ff3737be7b96",
+                         result["candidate_fingerprint"])
+        self.assertEqual({"size_bytes": 1111,
+                          "sha256": "db4fbb05801a2aa8a2ca6a84bb741cd5dcb3f5a57917b4325ee7c65c62c16843"},
+                         result["package"])
+
+    def test_transcript_package_contents_binding_and_escaping(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        result = self.build(transcript=sidecar)
+        raw = self.final_path().read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), result["package"]["sha256"])
+        with zipfile.ZipFile(self.final_path()) as archive:
+            self.assertEqual(["audio.bin", "candidate.json", "transcript.json", "transcript.vtt",
+                              "manifest.json"], archive.namelist())
+            self.assertEqual(self.data, archive.read("audio.bin"))
+            transcript_json = archive.read("transcript.json")
+            self.assertEqual(sidecar, json.loads(transcript_json))
+            self.assertEqual(self.candidate["transcript"]["fingerprint"],
+                             hashlib.sha256(transcript_json).hexdigest())
+            vtt = archive.read("transcript.vtt").decode("utf-8")
+            self.assertEqual(transcripts.to_webvtt(sidecar), vtt)
+            self.assertIn("00:00:00.500 --> 00:00:01.500", vtt)
+            self.assertIn('&lt;b&gt;A &amp; B&lt;/b&gt; --&gt; &amp;lt; "quote"', vtt)
+            self.assertNotIn("<b>", vtt)
+            manifest = json.loads(archive.read("manifest.json"))
+            self.assertEqual(packages.TRANSCRIPT_SCHEMA_VERSION, manifest["schema_version"])
+            self.assertEqual(set(archive.namelist()) - {"manifest.json"}, set(manifest["files"]))
+            for name, record in manifest["files"].items():
+                payload = archive.read(name)
+                self.assertEqual({"size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}, record)
+        for private in ("synthetic-rights", "synthetic-reviewer", str(self.root)):
+            self.assertNotIn(private.encode(), raw)
+        for flag in ("rights_verified", "media_qa_passed", "external_transfer", "publication"):
+            self.assertIs(False, result[flag])
+        self.assertNotIn(sidecar["cues"][0]["text"], json.dumps(result))
+
+    def test_transcript_argument_is_version_specific_before_io(self):
+        self.reject_without_io(transcript=self.transcript_document())
+        self.reject_without_io(transcript={})
+        self.select_transcript(self.transcript_document())
+        self.reject_without_io()
+        self.reject_without_io(transcript={})
+
+    def test_each_transcript_revision_change_rejects_stale_selection(self):
+        original = self.transcript_document()
+        self.select_transcript(original)
+        changes = [("text", "Edited cue"), ("id", "changed-cue"),
+                   ("start_ms", 600), ("end_ms", 1600)]
+        for key, value in changes:
+            changed = copy.deepcopy(original)
+            changed["cues"][0][key] = value
+            self.reject_without_io(transcript=changed)
+        changed = copy.deepcopy(original)
+        changed["language"] = "ja"
+        self.reject_without_io(transcript=changed)
+
+    def test_new_transcript_identity_cannot_reuse_old_decisions(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        old_decisions = copy.deepcopy(self.decisions)
+        old_fingerprint = self.fingerprint
+        sidecar["cues"][0]["text"] = "Reviewed new revision"
+        self.select_transcript(sidecar)
+        self.assertNotEqual(old_fingerprint, self.fingerprint)
+        self.reject_without_io(transcript=sidecar, expected_fingerprint=old_fingerprint)
+        self.reject_without_io(transcript=sidecar, decisions=old_decisions)
+
+    def test_transcript_reference_binding_is_independent_of_its_fingerprint(self):
+        for path, key, value in (((), "project_id", "other-project"),
+                                 ((), "content_id", "other-content"),
+                                 (("audio",), "asset_id", "other-input"),
+                                 (("audio",), "sha256", "a" * 64),
+                                 (("audio",), "duration_ms", 6001),
+                                 ((), "language", "ja")):
+            sidecar = self.transcript_document()
+            target = sidecar
+            for part in path:
+                target = target[part]
+            target[key] = value
+            # Select and approve the altered fingerprint, but retain independently
+            # supplied candidate scope/audio/duration/language; binding must fail.
+            self.select_transcript(sidecar)
+            self.reject_without_io(transcript=sidecar)
+
+    def test_transcript_snapshot_survives_caller_mutation_during_copy(self):
+        sidecar = self.transcript_document()
+        selected = copy.deepcopy(sidecar)
+        self.select_transcript(sidecar)
+        consume = packages.copy_verified_asset
+        def mutate(*args, **kwargs):
+            sidecar["cues"][0]["text"] = "Unselected replacement"
+            sidecar["audio"]["duration_ms"] = 1
+            sidecar["cues"].clear()
+            self.candidate["transcript"]["fingerprint"] = "0" * 64
+            return consume(*args, **kwargs)
+        with patch("narradock_packages.copy_verified_asset", side_effect=mutate):
+            self.build(transcript=sidecar)
+        with zipfile.ZipFile(self.final_path()) as archive:
+            self.assertEqual(selected, json.loads(archive.read("transcript.json")))
+            self.assertEqual(transcripts.to_webvtt(selected).encode(), archive.read("transcript.vtt"))
+
+    def test_invalid_transcript_text_is_rejected_before_io(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        for text in ("cue\n\nSTYLE\n::cue { color: red; }", "text\u2028injection", "text\x00"):
+            sidecar["cues"][0]["text"] = text
+            self.reject_without_io(transcript=sidecar)
+
+    def test_oversized_transcript_fails_before_legacy_encoding_and_io(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        sidecar["cues"] = [{"id": f"cue-{index}", "start_ms": index * 2, "end_ms": index * 2 + 1,
+                            "text": "z" * transcripts.MAX_TEXT} for index in range(600)]
+        # Structurally valid direct input exceeds the serialized package limit.
+        transcripts.validate(sidecar)
+        with patch("narradock_packages.transcripts.fingerprint") as fingerprint, \
+                patch("narradock_packages.transcripts.to_webvtt") as render:
+            self.reject_without_io(transcript=sidecar)
+            fingerprint.assert_not_called()
+            render.assert_not_called()
+
+    def test_webvtt_output_limit_precedes_io(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        encoded = transcripts.to_webvtt(sidecar).encode()
+        with patch.object(packages, "MAX_WEBVTT_BYTES", len(encoded) - 1):
+            self.reject_without_io(transcript=sidecar)
+        with patch.object(packages, "MAX_WEBVTT_BYTES", len(encoded)):
+            self.build(transcript=sidecar)
+
+    def test_transcript_package_is_reproducible(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        first = self.build(transcript=sidecar)
+        other = self.parent / "repeat-output"
+        other.mkdir()
+        second = self.build(transcript=sidecar, output_directory=other)
+        self.assertEqual(first["package"], second["package"])
+
+    def test_transcript_package_copy_failure_and_collision_cleanup(self):
+        sidecar = self.transcript_document()
+        self.select_transcript(sidecar)
+        self.asset.write_bytes(b"x" * len(self.data))
+        with self.assertRaises(packages.PackageError):
+            self.build(transcript=sidecar)
+        self.assertEqual([], list(self.output.iterdir()))
+        self.asset.write_bytes(self.data)
+        self.build(transcript=sidecar)
+        completed = self.final_path().read_bytes()
+        with self.assertRaises(packages.PackageError):
+            self.build(transcript=sidecar)
+        self.assertEqual(completed, self.final_path().read_bytes())
+        self.assertEqual([self.final_path()], list(self.output.iterdir()))
 
     def test_reproducible_package_and_distinct_private_decisions(self):
         first = self.build()

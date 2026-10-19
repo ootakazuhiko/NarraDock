@@ -11,10 +11,14 @@ from typing import Any
 import zipfile
 
 from narradock_assets import AssetError, CHUNK_BYTES, copy_verified_asset
-from narradock_candidates import CandidateError, candidate_fingerprint, snapshot_candidate
+from narradock_candidates import (CandidateError, candidate_fingerprint, snapshot_candidate,
+                                 TRANSCRIPT_SCHEMA_VERSION as TRANSCRIPT_CANDIDATE_VERSION)
+import narradock_transcript as transcripts
 
 SCHEMA_VERSION = "audio-package-0.1"
+TRANSCRIPT_SCHEMA_VERSION = "audio-package-0.2"
 DECISIONS_VERSION = "audio-package-decisions-0.1"
+MAX_WEBVTT_BYTES = 5 * transcripts.MAX_BYTES
 IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 
 
@@ -99,9 +103,31 @@ def _file_record(data: bytes) -> dict[str, Any]:
     return {"size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
 
 
+def _transcript_payloads(candidate: dict[str, Any], document: Any) -> dict[str, bytes]:
+    if candidate["schema_version"] != TRANSCRIPT_CANDIDATE_VERSION:
+        if document is not None:
+            raise PackageError("Audio-only candidates do not accept a transcript")
+        return {}
+    snapshot = transcripts.snapshot_transcript(document)
+    audio = candidate["audio"]
+    transcripts.require_binding(snapshot, {"project_id": candidate["project_id"],
+        "content_id": candidate["content_id"],
+        "audio": {key: audio[key] for key in ("asset_id", "sha256", "duration_ms")}})
+    if snapshot["language"] != candidate["metadata"]["language"]:
+        raise PackageError("Transcript language does not match the candidate")
+    # Bound serialization before calling the legacy in-memory fingerprint/export APIs.
+    canonical = transcripts.canonical_transcript_bytes(snapshot)
+    if transcripts.fingerprint(snapshot) != candidate["transcript"]["fingerprint"]:
+        raise PackageError("Transcript fingerprint mismatch")
+    webvtt = transcripts.to_webvtt(snapshot).encode("utf-8")
+    if len(webvtt) > MAX_WEBVTT_BYTES:
+        raise PackageError("Transcript exceeds WebVTT size limit")
+    return {"transcript.json": canonical, "transcript.vtt": webvtt}
+
+
 def create_audio_package(document: Any, *, project_id: str, expected_fingerprint: str,
                          decisions: Any, registry: Any, project_root: Path,
-                         output_directory: Path) -> dict[str, Any]:
+                         output_directory: Path, transcript: Any = None) -> dict[str, Any]:
     """Create <candidate fingerprint>.zip exclusively, with no external transfer.
 
     The caller must authenticate and check current decisions, and own the private
@@ -118,11 +144,12 @@ def create_audio_package(document: Any, *, project_id: str, expected_fingerprint
             raise PackageError("Candidate fingerprint mismatch")
         decision_snapshot = _decisions(decisions, project_id, fingerprint)
         decision_fingerprint = hashlib.sha256(_canonical(decision_snapshot)).hexdigest()
-        # All candidate/decision gates precede source and output filesystem I/O.
+        sidecars = _transcript_payloads(candidate, transcript)
+        # Candidate/decision/transcript gates precede source and output filesystem I/O.
         directory = _output_directory(output_directory, project_root)
         final = directory / (fingerprint + ".zip")
-        descriptor, name = tempfile.mkstemp(prefix=".narradock-", suffix=".tmp", dir=directory)
-        staging = Path(name)
+        descriptor, staging_name = tempfile.mkstemp(prefix=".narradock-", suffix=".tmp", dir=directory)
+        staging = Path(staging_name)
         try:
             stream = os.fdopen(descriptor, "w+b")
         except BaseException:
@@ -138,10 +165,14 @@ def create_audio_package(document: Any, *, project_id: str, expected_fingerprint
                     raise PackageError("Candidate asset declaration mismatch")
                 metadata = _canonical(candidate)
                 archive.writestr(_entry("candidate.json"), metadata)
-                manifest = {"schema_version": SCHEMA_VERSION, "project_id": project_id,
+                for member, data in sidecars.items():
+                    archive.writestr(_entry(member), data)
+                manifest = {"schema_version": TRANSCRIPT_SCHEMA_VERSION if sidecars else SCHEMA_VERSION,
+                            "project_id": project_id,
                             "content_id": candidate["content_id"], "candidate_fingerprint": fingerprint,
                             "files": {"audio.bin": {key: measured[key] for key in ("size_bytes", "sha256")},
                                       "candidate.json": _file_record(metadata)}}
+                manifest["files"].update({member: _file_record(data) for member, data in sidecars.items()})
                 archive.writestr(_entry("manifest.json"), _canonical(manifest))
             stream.flush()
             os.fsync(stream.fileno())
@@ -172,7 +203,8 @@ def create_audio_package(document: Any, *, project_id: str, expected_fingerprint
                 "external_transfer": False, "publication": False}
     except PackageError:
         raise
-    except (AssetError, CandidateError, OSError, ValueError, TypeError, RuntimeError):
+    except (AssetError, CandidateError, transcripts.TranscriptError,
+            OSError, ValueError, TypeError, RuntimeError):
         raise PackageError("Local audio package could not be created") from None
     finally:
         if not completed:

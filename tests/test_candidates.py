@@ -36,6 +36,64 @@ class CandidateTests(unittest.TestCase):
         return candidates.candidate_fingerprint(self.document if document is None else document,
                                                 project_id=self.project)
 
+    def transcript_candidate(self):
+        document = copy.deepcopy(self.document)
+        document["schema_version"] = candidates.TRANSCRIPT_SCHEMA_VERSION
+        document["audio"]["duration_ms"] = 6000
+        document["transcript"] = {"fingerprint": "a" * 64}
+        return document
+
+    def test_transcript_candidate_load_and_byte_verification(self):
+        document = self.transcript_candidate()
+        self.assertEqual(document, self.load(json.dumps(document).encode()))
+        result = self.verify(document)
+        self.assertEqual(self.fingerprint(document), result["candidate_fingerprint"])
+        self.assertEqual("candidate_asset_bytes_only", result["scope"])
+        self.assertIs(False, result["media_qa_passed"])
+        self.assertIs(False, result["packaged"])
+
+    def test_version_specific_transcript_fields(self):
+        version_two = self.transcript_candidate()
+        rejected = []
+        wrong_version = copy.deepcopy(version_two)
+        wrong_version["schema_version"] = candidates.SCHEMA_VERSION
+        rejected.append(wrong_version)
+        missing_transcript = copy.deepcopy(version_two)
+        del missing_transcript["transcript"]
+        rejected.append(missing_transcript)
+        missing_duration = copy.deepcopy(version_two)
+        del missing_duration["audio"]["duration_ms"]
+        rejected.append(missing_duration)
+        for sidecar in (None, [], {}, {"fingerprint": "a" * 64, "extra": True},
+                        {"fingerprint": "A" * 64}, {"fingerprint": True}):
+            rejected.append(dict(version_two, transcript=sidecar))
+        for document in rejected:
+            with self.assertRaises(candidates.CandidateError):
+                candidates.validate_candidate(document, project_id=self.project)
+
+    def test_transcript_candidate_duration_limits(self):
+        for duration in (0, -1, True, 1.0, "6000", None, candidates.MAX_DURATION_MS + 1):
+            document = self.transcript_candidate()
+            document["audio"]["duration_ms"] = duration
+            with self.assertRaises(candidates.CandidateError):
+                candidates.validate_candidate(document, project_id=self.project)
+        for duration in (1, candidates.MAX_DURATION_MS):
+            document = self.transcript_candidate()
+            document["audio"]["duration_ms"] = duration
+            candidates.validate_candidate(document, project_id=self.project)
+
+    def test_transcript_identity_and_duration_change_candidate_revision(self):
+        document = self.transcript_candidate()
+        original = self.fingerprint(document)
+        document["transcript"]["fingerprint"] = "b" * 64
+        self.assertNotEqual(original, self.fingerprint(document))
+        document = self.transcript_candidate()
+        document["audio"]["duration_ms"] += 1
+        self.assertNotEqual(original, self.fingerprint(document))
+        snapshot = candidates.snapshot_candidate(document, project_id=self.project)
+        snapshot["transcript"]["fingerprint"] = "c" * 64
+        self.assertEqual("a" * 64, document["transcript"]["fingerprint"])
+
     def verify(self, document=None, **kwargs):
         document = self.document if document is None else document
         args = {"project_id": self.project, "expected_fingerprint": self.fingerprint(document),

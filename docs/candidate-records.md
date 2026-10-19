@@ -1,4 +1,4 @@
-# Audio candidate records 0.1
+# Audio candidate records 0.1 and 0.2
 
 An audio candidate binds one declared audio asset and its delivery metadata to a
 content fingerprint. `narradock_candidates.py` validates that record and can
@@ -10,7 +10,7 @@ decode audio, measure duration, synthesize, render, record human approval, creat
 a package, transfer data or publish. Calling an asset "audio" does not prove its
 format or listening quality. Transcript and playback contracts remain separate.
 
-## Strict record
+## Audio-only record 0.1
 
 All fields are required; unknown fields and duplicate JSON keys fail.
 
@@ -40,6 +40,32 @@ reading in chunks of at most 4 KiB with one extra byte to detect overflow.
 Malformed JSON, non-finite values, excessive nesting and invalid fields fail.
 Direct dictionary APIs enforce the same field/count/text limits, independently
 of input whitespace and serialization layout. Floats are never valid sizes.
+
+## Transcript-bearing record 0.2
+
+`audio-candidate-0.2` requires every field from 0.1 and exactly two additions:
+
+| Field | Contract |
+|---|---|
+| audio.duration_ms | Independently declared presentation duration, integer (not bool) from 1 through 86,400,000 milliseconds |
+| transcript | Object with exactly `fingerprint`: 64 lowercase hexadecimal characters identifying the entire `timed-transcript-0.1` record |
+
+Version 0.2 always selects one required transcript. Neither addition is accepted
+in 0.1; there are no optional/null tracks or implicit schema upgrades. Existing
+0.1 fingerprints remain unchanged. Duration and the full transcript fingerprint
+participate in the 0.2 candidate fingerprint. Changes to cue text, IDs, timing,
+language or references therefore require a new candidate selection and matching
+decisions. The caller must select the transcript revision and independently
+review the declared duration; copying values from arbitrary incoming text does
+not establish their accuracy.
+
+Candidate validation checks declarations only. Even for 0.2,
+`verify_candidate_asset` and the candidate CLI's `verify` command verify **audio
+bytes only**: they do not load a transcript, compare its revision, measure duration
+or check speech alignment. The [package API](local-packages.md) performs the
+sidecar comparison and binds it to the bytes it actually copies. That API requires
+the single transcript's language to equal `metadata.language` exactly; translated
+or multiple tracks need a future contract.
 
 ## Fingerprints and the selected revision
 
@@ -164,7 +190,7 @@ tool-performed reviews. Changed metadata changes the fingerprint, but no approva
 database or automatic revocation mechanism is implemented.
 
 `snapshot_candidate(document, project_id=...)` returns an independent validated
-dictionary for downstream consumers. Its nested audio, metadata and credits do
+dictionary for downstream consumers. Its nested audio, metadata, credits and 0.2 transcript declaration do
 not share mutable containers with the input. Taking this snapshot does not verify
 bytes or establish any decision; it lets the package API consistently identify,
 compare and serialize one revision.
