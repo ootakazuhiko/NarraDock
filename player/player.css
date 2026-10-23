@@ -9,6 +9,10 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .eyebrow { color: #48665a; font-size: 12px; font-weight: 750; letter-spacing: 2px; }
 h1 { font-size: clamp(28px, 4.5vw, 42px); line-height: 1.35; letter-spacing: -1px; margin: 12px 0 16px; }
 h1 span { display: inline-block; }
+h1 { overflow-wrap: anywhere; }
+.identity { font-size: 13px; margin-top: 20px; color: #415b53; overflow-wrap: anywhere; }
+.identity summary { cursor: pointer; padding: 8px 0; }
+.identity code { display: block; overflow-wrap: anywhere; }
 p { line-height: 1.8; }
 .description { max-width: 680px; color: #415b53; margin-bottom: 0; }
 .workspace { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(0, 1.2fr); gap: 24px; align-items: start; }

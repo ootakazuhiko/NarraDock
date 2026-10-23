@@ -10,6 +10,7 @@ from narradock_candidates import CandidateError, candidate_fingerprint, snapshot
 
 SCHEMA_VERSION = "pcm-wav-measurements-0.1"
 MAX_WAV_BYTES = 1024 * 1024 * 1024
+MAX_CAPTURE_BYTES = 32 * 1024 * 1024
 MAX_METADATA_BYTES = 1024 * 1024
 MAX_CHUNKS = 128
 
@@ -21,7 +22,7 @@ class AudioMeasurementError(ValueError):
 class _PcmWav:
     """Private tentative sink; no result is valid until the source verifier returns."""
 
-    def __init__(self, expected_size: int):
+    def __init__(self, expected_size: int, *, capture: bool = False):
         self.expected_size = expected_size
         self.position = 0
         self.state = "riff"
@@ -38,6 +39,7 @@ class _PcmWav:
         self.peaks: list[int] = []
         self.endpoints: list[int] = []
         self.tail = b""
+        self.captured = bytearray() if capture else None
 
     def _fixed(self, state: str, needed: int) -> None:
         self.state, self.needed = state, needed
@@ -145,6 +147,8 @@ class _PcmWav:
                     header = bytes(self.buffer)
                     self.buffer.clear()
                     self._header(header)
+        if self.captured is not None:
+            self.captured.extend(data)
         return len(data)
 
     def finish(self) -> None:
@@ -161,15 +165,37 @@ def measure_candidate_wav(document: Any, *, project_id: str, expected_fingerprin
     unverifiable input raises AudioMeasurementError; a measured duration mismatch
     is a finding in a successful observation. No output file is created.
     """
+    return _consume_candidate_wav(document, project_id=project_id,
+        expected_fingerprint=expected_fingerprint, registry=registry,
+        project_root=project_root, capture=False)[1]
+
+
+def read_candidate_wav(document: Any, *, project_id: str, expected_fingerprint: str,
+                       registry: Any, project_root: Path) -> tuple[bytes, dict[str, Any]]:
+    """Return at most 32 MiB of verified WAV bytes and measurements of those reads.
+
+    Nothing is returned until source guards, candidate comparison and parsing
+    finish. The caller owns this private copy, including any embedded metadata.
+    No file is written. A duration mismatch remains a measurement finding.
+    """
+    return _consume_candidate_wav(document, project_id=project_id,
+        expected_fingerprint=expected_fingerprint, registry=registry,
+        project_root=project_root, capture=True)
+
+
+def _consume_candidate_wav(document: Any, *, project_id: str, expected_fingerprint: str,
+                           registry: Any, project_root: Path,
+                           capture: bool) -> tuple[bytes, dict[str, Any]]:
     try:
         candidate = snapshot_candidate(document, project_id=project_id)
         revision = candidate_fingerprint(candidate, project_id=project_id)
         if type(expected_fingerprint) is not str or expected_fingerprint != revision:
             raise AudioMeasurementError("Candidate fingerprint mismatch")
         audio = candidate["audio"]
-        if not 46 <= audio["size_bytes"] <= MAX_WAV_BYTES:
+        limit = MAX_CAPTURE_BYTES if capture else MAX_WAV_BYTES
+        if not 46 <= audio["size_bytes"] <= limit:
             raise AudioMeasurementError("Unsupported WAV size")
-        parser = _PcmWav(audio["size_bytes"])
+        parser = _PcmWav(audio["size_bytes"], capture=capture)
         verified = copy_verified_asset(registry, project_root=project_root,
             project_id=candidate["project_id"], asset_id=audio["asset_id"], destination=parser)
         if verified["size_bytes"] != audio["size_bytes"] or verified["sha256"] != audio["sha256"]:
@@ -182,7 +208,7 @@ def measure_candidate_wav(document: Any, *, project_id: str, expected_fingerprin
     rounded_ms = (2 * parser.frames * 1000 + parser.rate) // (2 * parser.rate)
     declared_ms = audio.get("duration_ms")
     matches = None if declared_ms is None else rounded_ms == declared_ms
-    return {"schema_version": SCHEMA_VERSION, "measured": True, "bytes_verified": True,
+    receipt = {"schema_version": SCHEMA_VERSION, "measured": True, "bytes_verified": True,
             "scope": "candidate_pcm_wav_measurements_only", "candidate_fingerprint": revision,
             "project_id": candidate["project_id"], "content_id": candidate["content_id"],
             "audio": {"asset_id": audio["asset_id"], "size_bytes": verified["size_bytes"],
@@ -199,3 +225,4 @@ def measure_candidate_wav(document: Any, *, project_id: str, expected_fingerprin
             "rights_verified": False, "media_qa_passed": False, "human_reviewed": False,
             "transcript_alignment_verified": False, "packaged": False,
             "external_transfer": False, "publication": False}
+    return bytes(parser.captured) if parser.captured is not None else b"", receipt
