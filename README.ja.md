@@ -8,13 +8,15 @@
 
 [プロジェクト別素材台帳と実バイト検証](docs/asset-registry.md)も実装済みです。`narradock_assets.py`の`validate`は台帳の構造を検証し、`verify`は明示した信頼するプロジェクトルート配下の素材を読み取り専用で解決し、実バイトのSHA-256とサイズを照合します。バイト検証の成功は権利確認、媒体QA、公開承認を意味しません。
 
-`narradock_transcript.py`には、[時刻付き文字起こしの契約](docs/synchronized-playback.md)を実装しています。構造検証、呼び出し側が提供する参照情報との照合、文字起こし全体の版を識別するハッシュ、プレーンテキストをエスケープしたWebVTT出力に対応します。実メディアのバイト検証や素材台帳との接続は行わず、ブラウザーでの同期再生は未実装です。`examples/timed-transcript.json`のハッシュと時刻は架空値です。
+`narradock_transcript.py`には、[時刻付き文字起こしの契約](docs/synchronized-playback.md)を実装しています。構造検証、呼び出し側が提供する参照情報との照合、文字起こし全体の版を識別するハッシュ、プレーンテキストをエスケープしたWebVTT出力に対応します。実メディアのバイト検証や素材台帳との接続は行わず、[合成データによる同期再生デモ](docs/standalone-player.md)を別に実装しています。`examples/timed-transcript.json`のハッシュと時刻は架空値です。
 
 [PCM WAV測定API](docs/audio-measurements.md)では、候補の実バイトを検証しながらフレーム数・音声長・サンプルピーク・端点値のサンプル数・全チャンネルがゼロのフレーム数を測定します。候補形式0.2では申告した音声長とも比較します。対応WAV形式は限定され、測定成功を媒体QAの合格とは扱いません。
 
-音声合成、動画生成、総合的な媒体QA、レビュー画面、アップロード、RSS生成、外部公開は未実装です。
+音声合成、動画生成、総合的な媒体QA、実際の候補を承認するレビュー画面、アップロード、RSS生成、外部公開は未実装です。
 
 `examples/audio-only.json`と`examples/video-enabled.json`のハッシュは引き続き架空値です。`examples/asset-registry.json`には、[素材台帳の再現用サンプル](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example)で説明する合成バイト列のハッシュとサイズを記載しています。実バイトの検証には、そのバイト列の作成と検証処理の実行が必要で、構造検証だけでは一致を確認しません。
+
+[単体プレーヤーデモ](docs/standalone-player.md)は、テスト音と字幕を含む自己完結したHTMLを生成します。再生・シーク・速度変更・字幕の強調表示・自動追従の切替を試せます。実音声の入力や承認の保存は扱いません。Pythonで生成した後は、ブラウザーだけで操作できます。
 
 ## 管理境界
 

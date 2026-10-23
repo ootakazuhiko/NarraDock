@@ -8,17 +8,19 @@ NarraDock is a public personal product for reusable media-production workflows. 
 
 ## Status: pre-alpha
 
-Implemented in the bootstrap: strict manifest validation, deterministic **symbolic planning**, neutral examples, unit tests, and a public-source inventory check. Python 3.11+ and Git are sufficient for these checks; no third-party Python packages are required.
+Implemented in the bootstrap: strict manifest validation, deterministic **symbolic planning**, neutral examples, unit tests, and a public-source inventory check. Python 3.11+ and Git run the Python checks; Node.js 20+ runs the player controller tests. Neither suite needs third-party packages.
 
 Also implemented: [project-local asset registries and byte verification](docs/asset-registry.md). The `narradock_assets.py` CLI separates registry structure validation (`validate`) from read-only asset resolution and streamed SHA-256/size verification (`verify`) beneath an explicitly supplied trusted project root. Verified bytes do not establish rights, media QA, or publication approval.
 
-The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; synchronized browser playback remains unimplemented. The digest and timing in `examples/timed-transcript.json` are placeholders.
+The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; a [synthetic synchronized browser player](docs/standalone-player.md) is available separately. The digest and timing in `examples/timed-transcript.json` are placeholders.
 
 The [PCM WAV measurement API](docs/audio-measurements.md) measures verified candidate bytes: frame count, duration, sample peaks, endpoint samples and digital-zero frames. For version 0.2 it compares measured and declared duration. Its supported WAV profile is deliberately limited; observations do not establish a media QA pass.
 
-**Not implemented:** synthesis, media rendering, comprehensive media QA, review UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
+**Not implemented:** synthesis, media rendering, comprehensive media QA, candidate review UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
 
 Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain placeholders, not verified media fingerprints. `examples/asset-registry.json` declares the hash and size of reproducible synthetic bytes described in the [asset registry example](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example); actual verification requires creating those bytes and running the verifier. Structural validation alone does not verify them.
+
+The [standalone player demo](docs/standalone-player.md) renders one self-contained HTML page with generated test tones, synchronized cue navigation, playback-rate controls and optional auto-follow. It accepts no real-media inputs and records no review decisions. Python generates the page; its controls run in the browser without a server or third-party scripts.
 
 ## Product boundaries
 

@@ -31,6 +31,8 @@ jobs:
           python-version: '3.11'
       - name: Unit tests
         run: python -B -m unittest discover -s tests -v
+      - name: Player controller tests (Node standard library)
+        run: node --test tests/test_player.cjs
       - name: Public source inventory
         run: python -B tools/check_public_tree.py
       - name: Validate neutral audio manifest
