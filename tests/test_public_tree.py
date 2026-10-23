@@ -18,6 +18,13 @@ class PublicTreeTests(unittest.TestCase):
     def test_binary_type_rejected(self):
         self.assertTrue(inspect_text("example.mp4", "neutral"))
 
+    def test_only_explicit_player_text_sources_are_allowed(self):
+        for name in ("player/player.js", "player/player.css", "tests/test_player.cjs"):
+            self.assertEqual([], inspect_text(name, "// Neutral source"))
+            self.assertTrue(inspect_text(name, "binary" + chr(0)))
+        for name in ("other.js", "player/other.css", "tests/other.cjs", "player/demo.html"):
+            self.assertTrue(inspect_text(name, "neutral"))
+
     def test_nul_rejected(self):
         self.assertTrue(inspect_text("example.md", "text" + chr(0)))
 

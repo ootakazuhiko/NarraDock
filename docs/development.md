@@ -2,7 +2,7 @@
 
 ## Preconditions
 
-Executor: the assigned developer or CI job. Repository: `ootakazuhiko/NarraDock`. Use a dedicated checkout/worktree, Python 3.11+, and Git. No media, provider service, credentials, package installation, or deployment is required.
+Executor: the assigned developer or CI job. Repository: `ootakazuhiko/NarraDock`. Use a dedicated checkout/worktree, Python 3.11+, Node.js 20+ for player controller tests, and Git. No media, provider service, credentials, package installation, or deployment is required.
 
 Before a local session, record the exact absolute checkout/worktree path, OS/shell, base branch `main`, assigned feature branch and PR, actual HEAD, clean/dirty state, running processes, permitted files, prohibited locations, and timing. No production or Windows worktree is preassigned by this document. Missing assignment means stop; do not guess a Windows path or reuse an unrelated checkout.
 
@@ -14,6 +14,7 @@ Run from the confirmed repository root in the assigned shell. Commands below are
 
 ```text
 python -B -m unittest discover -s tests -v
+node --test tests/test_player.cjs
 python -B tools/check_public_tree.py
 python -B narradock.py validate examples/audio-only.json
 python -B narradock.py plan examples/audio-only.json
@@ -21,7 +22,7 @@ python -B narradock.py plan examples/video-enabled.json
 git diff --check
 ```
 
-Stop after any nonzero exit. Expected: all tests pass; public surface check passes; validation says `structure_only`; both plans say `plan_only` and all execution/transfer/publication flags remain false. The audio-only plan contains no video-render step. No assets are created, resolved, synthesized, or uploaded. Test temporary directories are synthetic and automatically removed. `-B` prevents bytecode output. Tracked content should be unchanged by validation.
+Stop after any nonzero exit. Expected: all tests pass; public surface check passes; validation says `structure_only`; both plans say `plan_only` and all execution/transfer/publication flags remain false. The audio-only plan contains no video-render step. The manifest CLI example commands create, resolve, synthesize or upload no assets. Test temporary directories are synthetic and automatically removed. `-B` prevents bytecode output. Tracked content should be unchanged by validation.
 
 ## Failure and recovery
 
@@ -31,4 +32,8 @@ Read-only validation needs no Git restore. For a rejected source change, preserv
 
 ## CI
 
-NarraDock CI runs Python tests, inventory checks, and example commands on Linux and Windows. Actions are pinned to full upstream commit SHAs and the token has `contents: read`; checkout does not persist credentials. There are no media-provider calls, release steps, artifact uploads, or publishing credentials. CI success is not production acceptance or publication permission.
+NarraDock CI runs Python tests, Node standard-library player controller tests, inventory checks, and example commands on Linux and Windows. Node is provided by the hosted runner image; no npm packages are installed. Actions are pinned to full upstream commit SHAs and the token has `contents: read`; checkout does not persist credentials. There are no media-provider calls, release steps, artifact uploads, or publishing credentials. CI success is not production acceptance or publication permission.
+
+## Explicit browser acceptance
+
+The [synthetic player](standalone-player.md) has a separate `tests/check_player_browser.py` acceptance tool using an already installed Playwright and selected Chromium executable. This optional development capability is not a runtime dependency and is not installed automatically. Run it only in an assigned environment; record the browser version, outcomes and any screenshots privately. Node/Python CI does not establish browser compatibility. The tool serves one generated in-memory page on loopback and does not expose working-directory files. Safari, mobile devices, screen readers and real-media acceptance require separate evidence.

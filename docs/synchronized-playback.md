@@ -8,7 +8,7 @@ The first increment implements `narradock_transcript.py`, a standalone offline s
 
 The separate [local package API](local-packages.md) now binds one transcript to an `audio-candidate-0.2`, verifies the audio bytes it copies through the asset registry, and includes canonical transcript JSON and escaped WebVTT in an allowlisted ZIP. The standalone transcript validator still does no media I/O. Its structure/binding results alone are neither approved content nor a release package.
 
-The separate [PCM WAV measurement API](audio-measurements.md) measures frame duration and sample statistics for a limited PCM profile. Not implemented: alignment, comprehensive media QA, a browser player, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
+The separate [PCM WAV measurement API](audio-measurements.md) measures frame duration and sample statistics for a limited PCM profile. The [standalone player](standalone-player.md) now implements a synthetic-only browser prototype. Not implemented: alignment, comprehensive media QA, candidate-media review, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
 
 ## Timed-transcript contract
 
@@ -47,7 +47,7 @@ Time-preserving gain changes or mixing can retain cue times, but the final media
 
 Validate the final delivered presentation timeline, not merely intermediate WAV lengths. Audio and video may reuse cues only when their narration timelines match; differing edits need separate audio bindings and cue revisions. Capture alignment evidence privately. No media or alignment logs belong in this repository.
 
-## Browser player contract (future implementation)
+## Browser player contract (synthetic prototype implemented)
 
 The player adapter must provide audio play/pause, seek, elapsed/total time, playback-rate control, cue highlighting, and cue-to-seek navigation. A ten-second skip is an optional UI control, not a schema constraint. The framework must not require a particular frontend framework or player library.
 
@@ -83,7 +83,7 @@ No production endpoint, account, credential, CDN, payment service or hosting des
 | Increment | Required evidence | Status |
 |---|---|---|
 | Timed-transcript contract | Synthetic validation, binding mismatch, deterministic fingerprint, safe VTT and CLI tests | Implemented in this change |
-| Standalone player | Synthetic-only page; highlighting, gaps, seek, rate, pause/resume, manual-scroll and accessibility tests | Planned |
+| Standalone player | Synthetic-only page; highlighting, gaps, seek, rate, pause/resume, manual-scroll and accessibility tests | Implemented with generated tones, Python/Node checks and explicit Chromium acceptance; other browsers/devices pending |
 | Candidate-aware packaging | Verified audio bytes, sidecar and metadata revision binding, allowlisted package, private receipt; separately reviewed timeline QA | Offline package implemented; measured timeline QA remains pending |
 | Restricted adapter | Explicit destination and entitlement model; denied unauthenticated/cross-scope/cache/origin requests; expiry/renewal tests | Planned |
 | Reviewed pilot | Explicit environment and separate transfer/activation authority, selected-browser checks, reconciliation and rollback evidence | Not authorized |

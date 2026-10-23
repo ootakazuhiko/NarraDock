@@ -10,6 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_SUFFIXES = {".py", ".md", ".json", ".yml"}
 SPECIAL_NAMES = {".gitignore", ".gitattributes"}
+WEB_SOURCE_FILES = {"player/player.js", "player/player.css", "tests/test_player.cjs"}
 PATTERNS = [
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}"),
@@ -20,7 +21,8 @@ PATTERNS = [
 
 def inspect_text(name: str, text: str) -> list[str]:
     problems = []
-    if PurePosixPath(name).suffix not in ALLOWED_SUFFIXES and name not in SPECIAL_NAMES:
+    if (PurePosixPath(name).suffix not in ALLOWED_SUFFIXES
+            and name not in SPECIAL_NAMES and name not in WEB_SOURCE_FILES):
         problems.append("unapproved file type")
     if "\x00" in text or any(pattern.search(text) for pattern in PATTERNS):
         problems.append("sensitive-looking or binary content")
