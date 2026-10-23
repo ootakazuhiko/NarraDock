@@ -193,3 +193,7 @@ reference mismatches, stale decisions, escaped output, bounded encoding and 0.1
 compatibility. Linux and Windows CI complement each
 other; opposite-platform filesystem tests have explicit skips. Synthetic CI is
 not real-media QA, rights review or workstation acceptance.
+
+## Separate PCM measurements
+
+The [PCM WAV measurement API](audio-measurements.md) measures verified candidate bytes for a limited 16-bit PCM profile and compares actual frame duration with candidate 0.2 declared duration. It does not verify transcript alignment or approve media QA. This contract and its existing behavior remain unchanged; packaging does not automatically consume measurement results.

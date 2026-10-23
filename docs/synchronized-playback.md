@@ -8,7 +8,7 @@ The first increment implements `narradock_transcript.py`, a standalone offline s
 
 The separate [local package API](local-packages.md) now binds one transcript to an `audio-candidate-0.2`, verifies the audio bytes it copies through the asset registry, and includes canonical transcript JSON and escaped WebVTT in an allowlisted ZIP. The standalone transcript validator still does no media I/O. Its structure/binding results alone are neither approved content nor a release package.
 
-Not implemented: alignment, measured audio duration/QA, a browser player, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
+The separate [PCM WAV measurement API](audio-measurements.md) measures frame duration and sample statistics for a limited PCM profile. Not implemented: alignment, comprehensive media QA, a browser player, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
 
 ## Timed-transcript contract
 
@@ -106,3 +106,7 @@ Success is exit 0. Invalid input or output failure is exit 2 with sanitized diag
 - [CloudFront private content](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PrivateContent.html) documents signed access and restricting origin bypass.
 - [CloudFront signed URLs or cookies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-choosing-signed-urls-cookies.html) discusses access to multiple HLS files.
 - [CloudFront signed cookies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-signed-cookies.html) documents expiration and renewal considerations.
+
+## Separate PCM measurements
+
+The [PCM WAV measurement API](audio-measurements.md) measures verified candidate bytes for a limited 16-bit PCM profile and compares actual frame duration with candidate 0.2 declared duration. It does not verify transcript alignment or approve media QA. This contract and its existing behavior remain unchanged; packaging does not automatically consume measurement results.
