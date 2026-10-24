@@ -2,6 +2,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {activeCueIndex, formatTime, createController} = require("../player/player.js");
+const {NOTE_LIMITS, validNoteText, noteAnchor, createReviewNotes} = require("../player/player.js");
+const noteCases = require("./fixtures/review-notes-cases.json");
 
 const cues = [
   {start_ms: 1000, end_ms: 2000},
@@ -9,7 +11,114 @@ const cues = [
   {start_ms: 4000, end_ms: 5000}
 ];
 
-function fixture({loaded = true} = {}) {
+function noteFixture() {
+  const binding = {schema_version: "candidate-review-notes-0.1", project_id: "sample-project",
+    content_id: "sample-content", candidate_fingerprint: "a".repeat(64), transcript_fingerprint: "b".repeat(64)};
+  const transcript = {audio: {duration_ms: 6000}, cues: cues.map((cue, i) =>
+    ({...cue, id: ["first", "second", "last"][i]}))};
+  return {binding, transcript, model: createReviewNotes(binding, transcript)};
+}
+
+test("review text uses shared Unicode conformance cases", () => {
+  for (const item of noteCases.text_cases) {
+    assert.equal(validNoteText(item.text), item.valid, item.name);
+  }
+});
+
+test("review text limits count Unicode code points without truncation", () => {
+  for (const char of ["x", "🎵"]) {
+    assert.equal(validNoteText(char.repeat(1000)), true);
+    assert.equal(validNoteText(char.repeat(1001)), false);
+  }
+});
+
+test("note anchor floors media time and uses shared half-open cue boundaries", () => {
+  const {transcript} = noteFixture();
+  for (const expected of noteCases.anchor_cases) {
+    assert.deepEqual(noteAnchor(transcript.cues, 6000, expected.at_ms / 1000), expected);
+  }
+  assert.deepEqual(noteAnchor(transcript.cues, 6000, 1.9999), {at_ms: 1999, cue_id: "first"});
+  assert.deepEqual(noteAnchor(transcript.cues, 6000, 7), {at_ms: 6000, cue_id: null});
+  for (const seconds of [NaN, Infinity, -1, "1", null]) {
+    assert.throws(() => noteAnchor(transcript.cues, 6000, seconds));
+  }
+});
+
+test("note edit preserves the anchor and order; removal uses stable internal IDs", () => {
+  const {model} = noteFixture();
+  model.save({at_ms: 4000, cue_id: "last"}, "Later first.");
+  model.save({at_ms: 1000, cue_id: "first"}, "Earlier second.");
+  const [later, earlier] = model.entries();
+  model.save(later, "Edited.", later.id);
+  assert.deepEqual(model.entries().map(note => note.at_ms), [4000, 1000]);
+  model.remove(later.id);
+  assert.equal(model.entries()[0].id, earlier.id);
+  model.save({at_ms: 6000, cue_id: null}, "End.");
+  assert.notEqual(model.entries()[1].id, later.id);
+  assert.throws(() => model.save(later, "Deleted.", later.id));
+});
+
+test("millisecond seeks resist representation noise without rounding genuinely earlier positions", () => {
+  const precise = [{id: "first", start_ms: 1001, end_ms: 2001},
+    {id: "second", start_ms: 2001, end_ms: 3000}];
+  assert.deepEqual(noteAnchor(precise, 6000, 1001 / 1000), {at_ms: 1001, cue_id: "first"});
+  assert.deepEqual(noteAnchor(precise, 6000, 1.0009), {at_ms: 1000, cue_id: null});
+  assert.deepEqual(noteAnchor(precise, 6000, 2001 / 1000), {at_ms: 2001, cue_id: "second"});
+  const f = fixture({sampleCues: precise});
+  for (const [seconds, active] of [[1.001, 0], [1.0009, -1], [2.001, 1], [2.0009, 0]]) {
+    f.controller.seek(seconds);
+    assert.equal(f.last().active, active, String(seconds));
+  }
+});
+
+test("note selection and saved records do not follow caller mutations", () => {
+  const {model, binding, transcript} = noteFixture();
+  const anchor = {at_ms: 1500, cue_id: "first"};
+  model.save(anchor, "Fixed position.");
+  const expected = model.serialize();
+  anchor.at_ms = 4500;
+  binding.candidate_fingerprint = "c".repeat(64);
+  transcript.cues[0].id = "changed";
+  model.entries()[0].text = "Changed outside model";
+  assert.equal(model.serialize(), expected);
+});
+
+test("invalid note positions and text never change the record", () => {
+  const {model} = noteFixture();
+  for (const at_ms of [true, -1, 6001, 1500.5, "1500", NaN, Infinity]) {
+    assert.throws(() => model.save({at_ms, cue_id: "first"}, "Note."));
+  }
+  for (const cue_id of [null, "second", true, 0]) {
+    assert.throws(() => model.save({at_ms: 1500, cue_id}, "Note."));
+  }
+  assert.throws(() => model.save({at_ms: 1500, cue_id: "first"}, " "));
+  assert.deepEqual(model.entries(), []);
+});
+
+test("100-note boundary permits edits and reuse after deletion", () => {
+  const {model} = noteFixture();
+  for (let i = 0; i < NOTE_LIMITS.count; i++) model.save({at_ms: 0, cue_id: null}, "🎵".repeat(1000));
+  const first = model.entries()[0];
+  model.save(first, "Updated.", first.id);
+  assert.throws(() => model.save({at_ms: 0, cue_id: null}, "One more."));
+  assert.ok(new TextEncoder().encode(model.serialize()).length <= NOTE_LIMITS.bytes);
+  model.remove(first.id);
+  model.save({at_ms: 6000, cue_id: null}, "Replacement.");
+  assert.equal(model.entries().length, NOTE_LIMITS.count);
+});
+
+test("JSON export preserves literal text, contains only binding and notes, and is repeatable", () => {
+  const {model, binding} = noteFixture();
+  const text = '</script><img src=x onerror="alert(1)">\n🎵';
+  model.save({at_ms: 1500, cue_id: "first"}, text);
+  const output = JSON.parse(model.serialize());
+  assert.deepEqual(output, {...binding, notes: [{at_ms: 1500, cue_id: "first", text}]});
+  assert.equal(model.serialize(), model.serialize());
+  model.remove(model.entries()[0].id);
+  assert.deepEqual(JSON.parse(model.serialize()), {...binding, notes: []});
+});
+
+function fixture({loaded = true, sampleCues = cues} = {}) {
   const media = new EventTarget();
   Object.assign(media, {currentTime: 0, duration: 6, paused: true, ended: false, playbackRate: 1});
   media.pause = () => { media.paused = true; media.dispatchEvent(new Event("pause")); };
@@ -18,7 +127,7 @@ function fixture({loaded = true} = {}) {
   let sequence = 0;
   let isVisible = true;
   const controller = createController({
-    media, cues, durationMs: 6000,
+    media, cues: sampleCues, durationMs: 6000,
     view: {
       render: state => states.push(state), follow: index => follows.push(index),
       announce: message => messages.push(message)

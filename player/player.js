@@ -19,6 +19,14 @@ function formatTime(milliseconds) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function mediaMilliseconds(seconds) {
+  const value = seconds * 1000;
+  const nearest = Math.round(value);
+  // A millisecond seek such as 1.001 s can multiply to 1000.9999999999999.
+  return Math.abs(value - nearest) <= Number.EPSILON * Math.max(1, Math.abs(value))
+    ? nearest : value;
+}
+
 function createController({media, cues, durationMs, view, requestFrame, cancelFrame, visible}) {
   let following = true;
   let unavailable = false;
@@ -31,7 +39,7 @@ function createController({media, cues, durationMs, view, requestFrame, cancelFr
     if (destroyed) return;
     const validTime = Number.isFinite(media.currentTime) && media.currentTime >= 0;
     const elapsedMs = validTime
-      ? Math.max(0, Math.min(durationMs, media.currentTime * 1000)) : 0;
+      ? Math.max(0, Math.min(durationMs, mediaMilliseconds(media.currentTime))) : 0;
     const active = !ready || !validTime || unavailable || media.ended || elapsedMs >= durationMs
       ? -1 : activeCueIndex(cues, elapsedMs);
     view.render({active, elapsedMs, durationMs, following, unavailable, ready,
@@ -132,6 +140,194 @@ function createController({media, cues, durationMs, view, requestFrame, cancelFr
   };
 }
 
+const NOTE_LIMITS = Object.freeze({count: 100, text: 1000, bytes: 512 * 1024});
+
+function validNoteText(text) {
+  // Count Unicode code points; reject lone surrogates before TextEncoder can replace them.
+  return typeof text === "string" && text.length >= 1 && text.length <= 2 * NOTE_LIMITS.text
+    && [...text].length <= NOTE_LIMITS.text
+    && /[^\s]/u.test(text) && !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(text);
+}
+
+function noteAnchor(cues, durationMs, seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Invalid note position");
+  const at_ms = Math.min(durationMs, Math.floor(mediaMilliseconds(seconds)));
+  const index = activeCueIndex(cues, at_ms);
+  return {at_ms, cue_id: index < 0 ? null : cues[index].id};
+}
+
+function createReviewNotes(binding, transcript) {
+  const selected = {...binding};
+  const cues = transcript.cues.map(cue => ({...cue}));
+  const duration = transcript.audio.duration_ms;
+  let sequence = 0;
+  let notes = [];
+  return {
+    entries() { return notes.map(note => ({...note})); },
+    save(anchor, text, id = null) {
+      const index = id === null ? -1 : notes.findIndex(note => note.id === id);
+      if ((id !== null && index < 0) || (id === null && notes.length >= NOTE_LIMITS.count)
+          || !validNoteText(text) || !Number.isInteger(anchor.at_ms)
+          || anchor.at_ms < 0 || anchor.at_ms > duration) throw new Error("Invalid review note");
+      const active = activeCueIndex(cues, anchor.at_ms);
+      if (anchor.cue_id !== (active < 0 ? null : cues[active].id)) throw new Error("Invalid note cue");
+      const note = {id: id === null ? ++sequence : id, at_ms: anchor.at_ms, cue_id: anchor.cue_id, text};
+      if (index < 0) notes.push(note);
+      else notes[index] = note;
+    },
+    remove(id) { notes = notes.filter(note => note.id !== id); },
+    serialize() {
+      const output = JSON.stringify({...selected,
+        notes: notes.map(({at_ms, cue_id, text}) => ({at_ms, cue_id, text}))}, null, 2) + "\n";
+      if (new TextEncoder().encode(output).length > NOTE_LIMITS.bytes) throw new Error("Notes exceed limit");
+      return output;
+    }
+  };
+}
+
+function mountReviewNotes(document, window, transcript, media, controller) {
+  const data = document.getElementById("review-data");
+  if (!data) return null;
+  const model = createReviewNotes(JSON.parse(data.textContent), transcript);
+  const capture = document.getElementById("note-capture");
+  const editor = document.getElementById("note-editor");
+  const input = document.getElementById("note-text");
+  const save = document.getElementById("note-save");
+  const cancel = document.getElementById("note-cancel");
+  const list = document.getElementById("note-list");
+  const download = document.getElementById("note-export");
+  const status = document.getElementById("note-status");
+  let available = false;
+  let pending = null;
+  let objectURL = null;
+  let revokeTimer = null;
+  function label(anchor) {
+    const index = transcript.cues.findIndex(cue => cue.id === anchor.cue_id);
+    return `${formatTime(anchor.at_ms)}.${String(anchor.at_ms % 1000).padStart(3, "0")} / `
+      + (index < 0 ? "字幕のない位置" : `字幕 ${index + 1}`);
+  }
+  function controls() {
+    const count = model.entries().length;
+    capture.disabled = !available || pending !== null || count >= NOTE_LIMITS.count;
+    save.disabled = !pending || !validNoteText(input.value);
+    download.disabled = count === 0 || pending !== null;
+    document.getElementById("note-limit").textContent = `${[...input.value].length} / 1,000 文字`;
+    document.getElementById("note-count").textContent = `${count} / 100 件`;
+    list.querySelectorAll(".note-seek").forEach(button => { button.disabled = !available; });
+    list.querySelectorAll(".note-edit, .note-delete").forEach(button => { button.disabled = pending !== null; });
+  }
+  function start(anchor, text = "", id = null) {
+    pending = {...anchor, id};
+    input.value = text;
+    editor.hidden = false;
+    document.getElementById("note-anchor").textContent = `メモの位置（固定）: ${label(anchor)}`;
+    save.textContent = id === null ? "メモを追加" : "変更を反映";
+    status.textContent = "追加または取り消しの後、JSONで保存できます。";
+    controls();
+    input.focus();
+  }
+  function focusHome() {
+    if (!capture.disabled) capture.focus();
+    else if (!download.disabled) download.focus();
+    else document.getElementById("review-title").focus();
+  }
+  function finish() {
+    pending = null;
+    input.value = "";
+    editor.hidden = true;
+    controls();
+    focusHome();
+  }
+  function renderList() {
+    list.replaceChildren();
+    for (const note of model.entries()) {
+      const item = document.createElement("li");
+      const actions = document.createElement("div");
+      actions.className = "note-actions";
+      const seek = document.createElement("button");
+      seek.type = "button";
+      seek.className = "note-seek";
+      seek.textContent = label(note);
+      seek.addEventListener("click", () => controller.seek(note.at_ms / 1000));
+      const text = document.createElement("p");
+      text.className = "note-text";
+      text.textContent = note.text;
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "note-edit";
+      edit.textContent = "編集";
+      edit.setAttribute("aria-label", `${label(note)} のメモを編集`);
+      edit.addEventListener("click", () => start(note, note.text, note.id));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "note-delete";
+      remove.textContent = "削除";
+      remove.setAttribute("aria-label", `${label(note)} のメモを削除`);
+      remove.addEventListener("click", () => {
+        model.remove(note.id);
+        renderList();
+        focusHome();
+        status.textContent = "メモを削除しました。";
+      });
+      actions.append(seek, edit, remove);
+      item.append(actions, text);
+      list.append(item);
+    }
+    controls();
+  }
+  capture.addEventListener("click", () => {
+    if (!available || pending) return;
+    try { start(noteAnchor(transcript.cues, transcript.audio.duration_ms, media.currentTime)); }
+    catch { status.textContent = "再生位置を取得できませんでした。"; }
+  });
+  input.addEventListener("input", controls);
+  save.addEventListener("click", () => {
+    if (!pending) return;
+    try {
+      model.save(pending, input.value, pending.id);
+      finish();
+      renderList();
+      status.textContent = "メモに反映しました。保存するにはJSONを書き出してください。";
+    } catch { status.textContent = "メモを反映できませんでした。文字数と入力内容を確認してください。"; }
+  });
+  cancel.addEventListener("click", () => { finish(); status.textContent = "入力を取り消しました。"; });
+  function releaseURL() {
+    if (revokeTimer !== null) window.clearTimeout(revokeTimer);
+    if (objectURL !== null) window.URL.revokeObjectURL(objectURL);
+    revokeTimer = objectURL = null;
+  }
+  download.addEventListener("click", () => {
+    if (pending || model.entries().length === 0) return;
+    let link = null;
+    try {
+      const output = model.serialize();
+      releaseURL();
+      objectURL = window.URL.createObjectURL(new window.Blob([output], {type: "application/json;charset=utf-8"}));
+      link = document.createElement("a");
+      link.href = objectURL;
+      link.download = "narradock-review-notes.json";
+      document.body.append(link);
+      link.click();
+      revokeTimer = window.setTimeout(releaseURL, 60000);
+      status.textContent = "JSONのダウンロードを開始しました。ブラウザーで保存結果を確認してください。";
+    } catch {
+      releaseURL();
+      status.textContent = "JSONを書き出せませんでした。メモはこのページに残っています。";
+    } finally { if (link) link.remove(); }
+  });
+  window.addEventListener("pagehide", releaseURL);
+  window.addEventListener("beforeunload", event => {
+    if (model.entries().length || (pending && input.value)) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+  controls();
+  return {setAvailable(value) {
+    if (available !== value) { available = value; controls(); }
+  }};
+}
+
 function mountPlayer(document, window) {
   const transcript = JSON.parse(document.getElementById("transcript-data").textContent);
   const media = document.getElementById("audio");
@@ -159,6 +355,7 @@ function mountPlayer(document, window) {
     return button;
   });
   let active = -1;
+  let review = null;
   const controller = createController({
     media, cues: transcript.cues, durationMs: transcript.audio.duration_ms,
     requestFrame: callback => window.requestAnimationFrame(callback),
@@ -166,6 +363,7 @@ function mountPlayer(document, window) {
     visible: () => !document.hidden,
     view: {
       render(state) {
+        if (review) review.setAvailable(state.ready && !state.unavailable);
         clock.textContent = `${formatTime(state.elapsedMs)} / ${formatTime(state.durationMs)}`;
         follow.checked = state.following;
         follow.disabled = rate.disabled = state.unavailable || !state.ready;
@@ -216,6 +414,7 @@ function mountPlayer(document, window) {
   });
   document.addEventListener("visibilitychange", () => controller.visibilityChanged());
   window.addEventListener("pageshow", () => controller.visibilityChanged());
+  review = mountReviewNotes(document, window, transcript, media, controller);
   // Native controls initiate playback only through a user's action. No autoplay or persistence.
   media.src = document.getElementById("audio-data").textContent;
   media.load();
@@ -223,7 +422,8 @@ function mountPlayer(document, window) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = {activeCueIndex, formatTime, createController};
+  module.exports = {activeCueIndex, formatTime, createController, NOTE_LIMITS,
+    validNoteText, noteAnchor, createReviewNotes};
 } else {
   mountPlayer(document, window);
 }

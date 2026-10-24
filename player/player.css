@@ -13,6 +13,18 @@ h1 { overflow-wrap: anywhere; }
 .identity { font-size: 13px; margin-top: 20px; color: #415b53; overflow-wrap: anywhere; }
 .identity summary { cursor: pointer; padding: 8px 0; }
 .identity code { display: block; overflow-wrap: anywhere; }
+.review { margin-top: 24px; }
+.review-head, .note-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.review-head { justify-content: space-between; }
+.review button { font: inherit; padding: 10px 14px; border: 1px solid #8c9b91; border-radius: 8px; background: #f5f6f1; color: #193b32; cursor: pointer; }
+.review button:disabled { opacity: .55; cursor: default; }
+.review :is(button, textarea):focus-visible { outline: 3px solid #ad4c13; outline-offset: 3px; }
+.review textarea { display: block; box-sizing: border-box; width: 100%; resize: vertical; margin: 8px 0; padding: 12px; font: inherit; color: #193b32; background: #fff; border: 1px solid #8c9b91; border-radius: 8px; }
+.note-anchor { font-variant-numeric: tabular-nums; }
+.note-list { padding-left: 24px; }
+.note-list li { padding: 16px 0; border-bottom: 1px solid #d5ddd4; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-list:empty { display: none; }
 p { line-height: 1.8; }
 .description { max-width: 680px; color: #415b53; margin-bottom: 0; }
 .workspace { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(0, 1.2fr); gap: 24px; align-items: start; }

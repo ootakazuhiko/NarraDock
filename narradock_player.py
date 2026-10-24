@@ -5,6 +5,7 @@ import base64
 import hashlib
 import html
 import io
+import json
 import math
 from pathlib import Path
 import struct
@@ -95,11 +96,35 @@ def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
     footer = ("視聴確認用のローカルプレビューです。承認の記録や公開は行いません。" if preview else
               "合成データによる操作デモです。実際の録音・候補の承認・公開機能は含みません。")
     identity = ""
+    review = ""
     if preview:
+        from narradock_review import SCHEMA_VERSION as REVIEW_SCHEMA
         credits = "".join("<li>" + html.escape(credit) + "</li>" for credit in candidate["metadata"]["credits"])
         identity = (f'<details class="identity"><summary>候補の識別情報とクレジット</summary>'
                     f'<p>プロジェクト: {html.escape(candidate["project_id"])} / コンテンツ: {html.escape(candidate["content_id"])}</p>'
                     f'<code>{html.escape(revision)}</code><ul lang="{language}">{credits}</ul></details>')
+        # These fixed fields contain validated ASCII identifiers/digests only.
+        binding = json.dumps({"schema_version": REVIEW_SCHEMA,
+            "project_id": candidate["project_id"], "content_id": candidate["content_id"],
+            "candidate_fingerprint": revision,
+            "transcript_fingerprint": candidate["transcript"]["fingerprint"]}, sort_keys=True)
+        review = f'''<section id="review" class="panel review" aria-labelledby="review-title">
+<div class="review-head"><h2 id="review-title" tabindex="-1">視聴メモ</h2><span id="note-count">0 / 100 件</span></div>
+<p class="hint">気になった位置にメモを残せます。ページを閉じると消えるため、JSONで保存してください。承認の記録にはなりません。</p>
+<button id="note-capture" type="button" disabled>この位置にメモ</button>
+<div id="note-editor" hidden>
+<p id="note-anchor" class="note-anchor"></p>
+<label for="note-text">メモの内容</label>
+<textarea id="note-text" rows="3" maxlength="2000" aria-describedby="note-limit note-anchor"></textarea>
+<p id="note-limit" class="hint">0 / 1,000 文字</p>
+<div class="note-actions"><button id="note-save" type="button" disabled>メモを追加</button>
+<button id="note-cancel" type="button">取り消し</button></div>
+</div>
+<ol id="note-list" class="note-list" aria-label="視聴メモ一覧"></ol>
+<button id="note-export" type="button" disabled>メモをJSONで保存</button>
+<p id="note-status" class="status" role="status" aria-live="polite"></p>
+</section>
+<script id="review-data" type="application/json">{binding}</script>'''
     seconds = transcript["audio"]["duration_ms"] // 1000
     duration = f"{seconds // 60}:{seconds % 60:02d}"
     prefix = f'''<!doctype html>
@@ -139,6 +164,7 @@ def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </section>
 </div>
+{review}
 <footer>{footer}</footer>
 <noscript><p>再生と字幕操作にはJavaScriptが必要です。</p></noscript>
 </main>

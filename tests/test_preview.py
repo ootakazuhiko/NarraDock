@@ -247,7 +247,7 @@ class PreviewTests(unittest.TestCase):
         output, _ = self.build()
         page = Page(output.decode("utf-8"))
         self.assertFalse(any(tag in {"img", "b"} for tag, _ in page.tags))
-        self.assertEqual(3, sum(tag == "script" for tag, _ in page.tags))
+        self.assertEqual(4, sum(tag == "script" for tag, _ in page.tags))
         self.assertEqual("ja", next(attrs["lang"] for tag, attrs in page.tags if tag == "html"))
         self.assertEqual("en", next(attrs["lang"] for tag, attrs in page.tags if attrs.get("id") == "transcript"))
         payload = next(text for _, attrs, text in page.blocks if attrs.get("id") == "transcript-data")

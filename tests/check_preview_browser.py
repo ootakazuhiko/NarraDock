@@ -15,7 +15,7 @@ import narradock_preview as previews
 import narradock_transcript as transcripts
 
 
-def synthetic_preview():
+def synthetic_preview_inputs():
     sidecar, wav = player.synthetic_fixture()
     literal = '</script><img src=x onerror="alert(1)">& <b>literal</b> 🎵'
     sidecar["language"] = "en"
@@ -25,6 +25,11 @@ def synthetic_preview():
         "audio": {**sidecar["audio"], "size_bytes": len(wav)},
         "metadata": {"title": literal, "language": "en", "credits": [literal, "x" * 200]},
         "transcript": {"fingerprint": transcripts.fingerprint(sidecar)}}
+    return candidate, sidecar, wav, literal
+
+
+def synthetic_preview():
+    candidate, sidecar, wav, literal = synthetic_preview_inputs()
     revision = candidates.candidate_fingerprint(candidate, project_id=candidate["project_id"])
     registry = {"schema_version": "asset-registry-0.1", "project_id": candidate["project_id"],
         "assets": [{key: value for key, value in candidate["audio"].items() if key != "duration_ms"}]}
