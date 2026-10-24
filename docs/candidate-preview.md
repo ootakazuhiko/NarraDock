@@ -5,6 +5,8 @@ and a receipt in memory. It connects a selected version 0.2 candidate, its timed
 transcript and verified PCM WAV to the [synchronized player](standalone-player.md).
 It is an offline Python API: no file import UI, CLI, server, browser launch,
 output writing, approval recording, packaging or publication is performed.
+The returned page now has [playback notes](review-notes.md): a listener can
+annotate fixed positions and explicitly request a private JSON download.
 
 ## Call and selection
 
@@ -93,8 +95,9 @@ an authenticated decision record. Its `rights_verified`, `media_qa_passed`,
 `external_transfer` and `publication` fields are all false.
 
 No approved package or approval assertions are required to inspect a candidate.
-Listening and transcript alignment still require human evaluation; this API
-neither records that evaluation nor feeds approval into packaging. The existing
+Listening and transcript alignment still require human evaluation. The page's
+optional notes do not record completion or approval and do not feed decisions
+into packaging. The existing
 candidate, transcript, package and demo APIs retain their contracts.
 
 ## Validation

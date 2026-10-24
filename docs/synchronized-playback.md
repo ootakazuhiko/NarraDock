@@ -85,6 +85,7 @@ No production endpoint, account, credential, CDN, payment service or hosting des
 | Timed-transcript contract | Synthetic validation, binding mismatch, deterministic fingerprint, safe VTT and CLI tests | Implemented in this change |
 | Standalone player | Synthetic-only page; highlighting, gaps, seek, rate, pause/resume, manual-scroll and accessibility tests | Implemented with generated tones, Python/Node checks and explicit Chromium acceptance; other browsers/devices pending |
 | Candidate preview | Selected candidate, bound transcript and verified PCM bytes in private HTML | [Offline API implemented](candidate-preview.md); measured duration required, alignment and approval recording remain separate |
+| Playback notes | Fixed time/cue notes, private JSON export and selected-revision validation | [Implemented](review-notes.md); notes are not authenticated review completion or package decisions |
 | Candidate-aware packaging | Verified audio bytes, sidecar and metadata revision binding, allowlisted package, private receipt; separately reviewed timeline QA | Offline package implemented; measured timeline QA remains pending |
 | Restricted adapter | Explicit destination and entitlement model; denied unauthenticated/cross-scope/cache/origin requests; expiry/renewal tests | Planned |
 | Reviewed pilot | Explicit environment and separate transfer/activation authority, selected-browser checks, reconciliation and rollback evidence | Not authorized |
