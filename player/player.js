@@ -1,6 +1,6 @@
 "use strict";
 
-// This adapter receives only the generator's validated synthetic fixture.
+// This adapter receives the generator's synthetic fixture or verified candidate preview.
 function activeCueIndex(cues, milliseconds) {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return -1;
   let low = 0;
@@ -73,7 +73,7 @@ function createController({media, cues, durationMs, view, requestFrame, cancelFr
   events.forEach(name => media.addEventListener(name, update));
   media.addEventListener("error", fail);
   function loaded() {
-    // Synthetic WAV duration is exact; allow the browser a millisecond of representation error.
+    // Allow one millisecond for declared-duration rounding and browser representation.
     if (!Number.isFinite(media.duration) || Math.abs(media.duration * 1000 - durationMs) > 1) fail();
     else {
       ready = true;

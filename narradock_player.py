@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import io
 import math
 from pathlib import Path
@@ -66,7 +67,13 @@ def _json_for_html(document: dict) -> str:
 
 def render_demo() -> str:
     """Return only the built-in synthetic demo; no caller media, paths or URLs."""
-    transcript, wav = synthetic_fixture()
+    return _render_page(*synthetic_fixture()).decode("utf-8")
+
+
+def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
+                 revision: str = "", payload: str | None = None,
+                 max_bytes: int | None = None) -> bytes:
+    """Internal renderer for fixed demo or previously verified preview inputs."""
     script = (SOURCE_ROOT / "player/player.js").read_text(encoding="utf-8")
     style = (SOURCE_ROOT / "player/player.css").read_text(encoding="utf-8")
     def digest(source):
@@ -74,52 +81,76 @@ def render_demo() -> str:
     policy = ("default-src 'none'; base-uri 'none'; form-action 'none'; "
               f"script-src 'sha256-{digest(script)}'; style-src 'sha256-{digest(style)}'; "
               "media-src data:; connect-src 'none'; object-src 'none'")
-    payload = _json_for_html(transcript)
-    audio_data = "data:audio/wav;base64," + base64.b64encode(wav).decode("ascii")
-    return f'''<!doctype html>
+    payload = _json_for_html(transcript) if payload is None else payload
+    preview = candidate is not None
+    language = html.escape(transcript["language"], quote=True)
+    page_title = "音声候補のプレビュー" if preview else "音声と字幕のデモ"
+    badge = "LOCAL PREVIEW" if preview else "PLAYER DEMO"
+    heading = html.escape(candidate["metadata"]["title"]) if preview else "<span>音と字幕の</span><span>タイミングを試す。</span>"
+    description = ("音声と字幕を視聴して確認するためのプレビューです。<br>字幕を選んで移動しても、再生は自動で始まりません。"
+                   if preview else "24秒のテスト音と字幕で、再生位置の移動や追従を確認できます。<br>字幕を選んで移動しても、再生は自動で始まりません。")
+    audio_title = "音声" if preview else "テスト音声"
+    audio_hint = ("字幕の位置や内容は、音声を聴いて確認してください。" if preview else
+                  "音は字幕の開始位置を示す短い合図です。<br>文章の読み上げではありません。")
+    footer = ("視聴確認用のローカルプレビューです。承認の記録や公開は行いません。" if preview else
+              "合成データによる操作デモです。実際の録音・候補の承認・公開機能は含みません。")
+    identity = ""
+    if preview:
+        credits = "".join("<li>" + html.escape(credit) + "</li>" for credit in candidate["metadata"]["credits"])
+        identity = (f'<details class="identity"><summary>候補の識別情報とクレジット</summary>'
+                    f'<p>プロジェクト: {html.escape(candidate["project_id"])} / コンテンツ: {html.escape(candidate["content_id"])}</p>'
+                    f'<code>{html.escape(revision)}</code><ul lang="{language}">{credits}</ul></details>')
+    seconds = transcript["audio"]["duration_ms"] // 1000
+    duration = f"{seconds // 60}:{seconds % 60:02d}"
+    prefix = f'''<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="{policy}">
 <meta name="referrer" content="no-referrer">
-<title>NarraDock — 音声と字幕のデモ</title>
+<title>NarraDock — {page_title}</title>
 <style>{style}</style>
 </head>
 <body>
 <main>
-<header><div class="brand">NarraDock<span aria-hidden="true"> /</span></div><span class="badge">PLAYER DEMO</span></header>
+<header><div class="brand">NarraDock<span aria-hidden="true"> /</span></div><span class="badge">{badge}</span></header>
 <section class="intro" aria-labelledby="title">
 <div class="eyebrow">LISTEN &amp; FOLLOW</div>
-<h1 id="title"><span>音と字幕の</span><span>タイミングを試す。</span></h1>
-<p class="description">24秒のテスト音と字幕で、再生位置の移動や追従を確認できます。<br>字幕を選んで移動しても、再生は自動で始まりません。</p>
+<h1 id="title" lang="{language}">{heading}</h1>
+<p class="description">{description}</p>
+{identity}
 </section>
 <div class="workspace">
 <section class="panel" aria-labelledby="audio-title">
-<h2 id="audio-title">テスト音声</h2>
+<h2 id="audio-title">{audio_title}</h2>
 <div class="signal" aria-hidden="true">{('<i></i>' * 19)}</div>
-<audio id="audio" controls preload="metadata" aria-label="テスト音声の再生コントロール"></audio>
-<div id="clock" class="clock" aria-label="再生位置と長さ">0:00 / 0:24</div>
+<audio id="audio" controls preload="metadata" aria-label="{audio_title}の再生コントロール"></audio>
+<div id="clock" class="clock" aria-label="再生位置と長さ">0:00 / {duration}</div>
 <div class="rate-row"><label for="rate">再生速度</label><select id="rate">
 <option value="0.75">0.75×</option><option value="1" selected>1×（標準）</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
 </select></div>
-<p class="hint">音は字幕の開始位置を示す短い合図です。<br>文章の読み上げではありません。</p>
+<p class="hint">{audio_hint}</p>
 </section>
 <section class="panel" aria-labelledby="transcript-title">
 <div class="transcript-head"><h2 id="transcript-title">字幕</h2><label class="follow-control"><input id="follow" type="checkbox" checked>自動追従</label></div>
-<ol id="transcript" class="transcript" tabindex="0" aria-label="字幕一覧。項目を選ぶとその時刻へ移動します。"></ol>
+<ol id="transcript" lang="{language}" class="transcript" tabindex="0" aria-label="字幕一覧。項目を選ぶとその時刻へ移動します。"></ol>
 <p class="hint">スクロールやキーボード操作で追従を停止。チェックを入れると再開します。</p>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </section>
 </div>
-<footer>合成データによる操作デモです。実際の録音・候補の承認・公開機能は含みません。</footer>
-<noscript><p>このデモの再生と字幕操作にはJavaScriptが必要です。</p></noscript>
+<footer>{footer}</footer>
+<noscript><p>再生と字幕操作にはJavaScriptが必要です。</p></noscript>
 </main>
-<script id="transcript-data" type="application/json">{payload}</script>
-<script id="audio-data" type="text/plain">{audio_data}</script>
-<script>{script}</script>
-</body></html>
-'''
+<script id="transcript-data" type="application/json">'''
+    # Keep the large base64 section as ASCII bytes, even with non-BMP cue text.
+    parts = [prefix.encode("utf-8"), payload.encode("utf-8"),
+             b'</script>\n<script id="audio-data" type="text/plain">data:audio/wav;base64,',
+             base64.b64encode(wav), b"</script>\n<script>", script.encode("utf-8"),
+             b"</script>\n</body></html>\n"]
+    if max_bytes is not None and sum(len(part) for part in parts) > max_bytes:
+        raise ValueError("Player page exceeds output limit")
+    return b"".join(parts)
 
 
 def main(argv: list[str] | None = None) -> int:

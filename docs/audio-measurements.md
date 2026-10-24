@@ -1,6 +1,6 @@
 # Candidate-bound PCM WAV measurements
 
-`narradock_audio.py` provides an offline Python API, `measure_candidate_wav`. It measures one selected audio candidate through the same guarded reads used to verify the asset's SHA-256 and size. It creates no files and requires no third-party package, audio device, engine or provider. There is no measurement CLI in this increment.
+`narradock_audio.py` provides offline Python APIs, `measure_candidate_wav` and `read_candidate_wav`. Both measure one selected audio candidate through the same guarded reads used to verify the asset's SHA-256 and size. The latter also returns the exact verified bytes with a smaller input cap. They create no files and require no third-party package, audio device, engine or provider. There is no measurement CLI.
 
 ## Call and verification boundary
 
@@ -20,6 +20,8 @@ The caller supplies the existing [candidate](candidate-records.md) and [asset re
 
 The existing verifier's trusted-root, ancestor/mount and race limitations apply; this is not an OS sandbox. The observation describes bytes read during that call and is not a guarantee about later file contents. Invalid, unsupported or unverifiable input raises `AudioMeasurementError` with a fixed message, without source paths or metadata. The caller handles that failure; no partial result or audio copy is returned.
 
+`read_candidate_wav` takes the same arguments and returns `(wav_bytes, result)` after the same final checks. Its input ceiling is 32 MiB, checked before asset I/O; `measure_candidate_wav` retains its streaming 1 GiB ceiling. The receipt and duration-mismatch behavior are identical. Captured bytes include every original header, pad byte and permitted opaque metadata chunk. There is no second source read, file output or metadata sanitization. This bounded capture supports the separate [candidate preview API](candidate-preview.md).
+
 ## Deliberately limited WAV profile
 
 | Property | Accepted value |
@@ -32,9 +34,9 @@ The existing verifier's trusted-root, ancestor/mount and race limitations apply;
 | Additional chunks | `JUNK` and `LIST` whose first four payload bytes are `INFO`, before or after audio |
 | Limits | File at most 1 GiB; at most 128 chunks including `fmt ` and `data`; aggregate additional-chunk payload at most 1 MiB |
 
-Every chunk must fit inside RIFF, including its mandatory odd-length padding byte. The pad byte's value is ignored. `LIST/INFO` payload after the subtype is skipped opaquely: nested metadata structure and semantics are not validated, retained or emitted. Metadata payload limits include the `INFO` subtype and exclude chunk headers/padding. Duplicate format/data chunks, unknown chunks, partial frames/headers/padding, and trailing bytes are rejected. RF64, RIFX, extensible WAV, extended format chunks, floating-point PCM, compressed audio and other sample widths are unsupported. A valid WAV outside this profile is still rejected; callers must not interpret that as proof that the file is corrupt.
+Every chunk must fit inside RIFF, including its mandatory odd-length padding byte. The pad byte's value is ignored. `LIST/INFO` payload after the subtype is parsed opaquely: nested metadata structure and semantics are not validated or included in measurement receipts. `read_candidate_wav` preserves the original metadata in its returned bytes. Metadata payload limits include the `INFO` subtype and exclude chunk headers/padding. Duplicate format/data chunks, unknown chunks, partial frames/headers/padding, and trailing bytes are rejected. RF64, RIFX, extensible WAV, extended format chunks, floating-point PCM, compressed audio and other sample widths are unsupported. A valid WAV outside this profile is still rejected; callers must not interpret that as proof that the file is corrupt.
 
-Memory does not scale with advertised chunk sizes. Parsing retains only small headers, at most three incomplete frame bytes, the verifier's bounded read block and fixed channel counters. Length and metadata/count limits also bound work, but the 1 GiB ceiling is not a CPU deadline or real-time guarantee.
+Measurement-only memory does not scale with advertised chunk sizes. Parsing retains only small headers, at most three incomplete frame bytes, the verifier's bounded read block and fixed channel counters. `read_candidate_wav` additionally retains the complete source and creates immutable result bytes; its 32 MiB file limit is not a process-memory limit. Length and metadata/count limits also bound work, but neither file ceiling is a CPU deadline or real-time guarantee.
 
 ## Result contract: `pcm-wav-measurements-0.1`
 
@@ -57,4 +59,4 @@ For candidate 0.2, `declared_ms` is its declared audio duration and `matches_dec
 
 The observation can inform a caller's technical review. It is not an authenticated approval or a new package decision schema. [Local packaging](local-packages.md) still requires its existing candidate-bound caller decisions and independently verifies the bytes it copies; it does not consume or automatically trust these measurements. Candidate, transcript, package and legacy byte-verification formats remain unchanged.
 
-Tests generate neutral PCM bytes in temporary directories. They cover a standard-library WAV writer, mono/stereo counts, rational duration and half-millisecond rounding, every read boundary in a small metadata-bearing file, multiple read blocks, malformed extents/formats, resource limits, stale selections, changed sources and final verifier failure. No real media or binary fixture is committed. Loudness analysis, additional codecs, listening/synchronized playback UI and live-media acceptance remain future work.
+Tests generate neutral PCM bytes in temporary directories. They cover a standard-library WAV writer, mono/stereo counts, rational duration and half-millisecond rounding, every read boundary in a small metadata-bearing file, exact captured bytes across multiple read blocks, malformed extents/formats, resource limits, stale selections, changed sources and final verifier failure. No real media or binary fixture is committed. The separate candidate preview supplies synchronized playback; loudness analysis, additional codecs and live-media acceptance remain future work.

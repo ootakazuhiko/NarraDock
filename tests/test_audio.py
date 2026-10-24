@@ -101,6 +101,83 @@ class AudioTests(unittest.TestCase):
         for private in (str(self.root), self.asset.name, self.candidate["metadata"]["title"]):
             self.assertNotIn(private, json.dumps(result))
 
+    def read(self, **kwargs):
+        arguments = {"project_id": self.project, "expected_fingerprint": self.revision,
+                     "registry": self.registry, "project_root": self.root}
+        arguments.update(kwargs)
+        return audio.read_candidate_wav(self.candidate, **arguments)
+
+    def test_read_returns_exact_bytes_and_unchanged_measurement_receipt(self):
+        expected = self.measure()
+        with patch.object(audio, "copy_verified_asset", wraps=audio.copy_verified_asset) as consume:
+            captured, result = self.read()
+        consume.assert_called_once()
+        self.assertIs(type(captured), bytes)
+        self.assertEqual(self.data, captured)
+        self.assertEqual(expected, result)
+        self.assertEqual([self.asset], list(self.root.iterdir()))
+
+    def test_read_limit_does_not_reduce_streaming_measurement_limit(self):
+        with patch.object(audio, "MAX_CAPTURE_BYTES", len(self.data) - 1):
+            with patch.object(audio, "copy_verified_asset") as consume:
+                with self.assertRaises(audio.AudioMeasurementError):
+                    self.read()
+                consume.assert_not_called()
+            self.assertIs(True, self.measure()["measured"])
+        with patch.object(audio, "MAX_CAPTURE_BYTES", len(self.data)):
+            self.assertEqual(self.data, self.read()[0])
+
+    def test_read_rejects_actual_cap_and_stale_revision_before_io(self):
+        with patch.object(audio, "copy_verified_asset") as consume:
+            with self.assertRaises(audio.AudioMeasurementError):
+                self.read(expected_fingerprint="b" * 64)
+            self.candidate["audio"]["size_bytes"] = audio.MAX_CAPTURE_BYTES + 1
+            self.reselect()
+            with self.assertRaises(audio.AudioMeasurementError):
+                self.read()
+            consume.assert_not_called()
+
+    def test_read_captures_multiple_blocks_and_odd_metadata_exactly(self):
+        data = riff(chunk(b"JUNK", b"odd"), fmt(2),
+                    pcm(*([0, -32768, 32767, 200] * (assets.CHUNK_BYTES // 4))),
+                    chunk(b"LIST", b"INFOodd"))
+        self.select(data)
+        expected = self.measure()
+        for read_size in (31, 4093, assets.CHUNK_BYTES):
+            with self.subTest(read_size=read_size), patch.object(assets, "CHUNK_BYTES", read_size):
+                captured, receipt = self.read()
+                self.assertEqual(data, captured)
+                self.assertEqual(expected, receipt)
+                self.assertEqual(hashlib.sha256(captured).hexdigest(), receipt["audio"]["sha256"])
+
+    def test_read_preserves_metadata_and_duration_mismatch_finding(self):
+        self.select(riff(fmt(), pcm(1, 2, 3, 4), chunk(b"LIST", b"INFOopaque")), duration=2)
+        captured, result = self.read()
+        self.assertEqual(self.data, captured)
+        self.assertIn(b"INFOopaque", captured)
+        self.assertEqual(["duration_mismatch"], result["findings"])
+        self.assertEqual(self.measure(), result)
+
+    def test_read_discards_tentative_bytes_when_final_source_guard_fails(self):
+        original = assets._asset_fd
+        @contextmanager
+        def fail_at_exit(*args, **kwargs):
+            with original(*args, **kwargs) as fd:
+                yield fd
+                raise assets.AssetError("Synthetic final guard failure")
+        with patch.object(assets, "_asset_fd", fail_at_exit):
+            with self.assertRaises(audio.AudioMeasurementError):
+                self.read()
+
+    def test_read_rejects_malformed_or_unverified_source(self):
+        self.select(riff(fmt(), pcm(1), chunk(b"abcd", b"")))
+        with self.assertRaises(audio.AudioMeasurementError):
+            self.read()
+        self.select(riff(fmt(), pcm(1)))
+        self.registry["assets"][0]["sha256"] = "b" * 64
+        with self.assertRaises(audio.AudioMeasurementError):
+            self.read()
+
     def test_stereo_counts_frames_and_channels_independently(self):
         self.select(riff(fmt(2), pcm(0, 0, 0, -32768, 32767, 100, -30, 0)))
         result = self.measure()["pcm"]

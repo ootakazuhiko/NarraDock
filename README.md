@@ -16,7 +16,9 @@ The [timed-transcript contract](docs/synchronized-playback.md) is also implement
 
 The [PCM WAV measurement API](docs/audio-measurements.md) measures verified candidate bytes: frame count, duration, sample peaks, endpoint samples and digital-zero frames. For version 0.2 it compares measured and declared duration. Its supported WAV profile is deliberately limited; observations do not establish a media QA pass.
 
-**Not implemented:** synthesis, media rendering, comprehensive media QA, candidate review UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
+The [candidate audio preview API](docs/candidate-preview.md) builds private HTML from a selected version 0.2 candidate, matching transcript and verified PCM WAV. It checks measured duration and embeds the exact bytes from the verification read. The page supports listening and synchronized navigation; it creates no review or approval record.
+
+**Not implemented:** synthesis, media rendering, comprehensive media QA, an approval-recording UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
 
 Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain placeholders, not verified media fingerprints. `examples/asset-registry.json` declares the hash and size of reproducible synthetic bytes described in the [asset registry example](docs/asset-registry.md#cli-and-a-reproducible-synthetic-example); actual verification requires creating those bytes and running the verifier. Structural validation alone does not verify them.
 

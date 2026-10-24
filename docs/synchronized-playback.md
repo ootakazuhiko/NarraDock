@@ -8,7 +8,7 @@ The first increment implements `narradock_transcript.py`, a standalone offline s
 
 The separate [local package API](local-packages.md) now binds one transcript to an `audio-candidate-0.2`, verifies the audio bytes it copies through the asset registry, and includes canonical transcript JSON and escaped WebVTT in an allowlisted ZIP. The standalone transcript validator still does no media I/O. Its structure/binding results alone are neither approved content nor a release package.
 
-The separate [PCM WAV measurement API](audio-measurements.md) measures frame duration and sample statistics for a limited PCM profile. The [standalone player](standalone-player.md) now implements a synthetic-only browser prototype. Not implemented: alignment, comprehensive media QA, candidate-media review, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
+The separate [PCM WAV measurement API](audio-measurements.md) measures frame duration and sample statistics for a limited PCM profile. The [standalone player](standalone-player.md) implements a synthetic browser demo; the [candidate preview API](candidate-preview.md) connects selected candidates to that player after audio, transcript and measured-duration verification. Not implemented: alignment verification, comprehensive media QA, approval recording, authentication, entitlement checks, storage/CDN adapters, DRM, payment, remote transfer, or public activation. The foundation manifest schema and its `package_only` planning restriction remain unchanged.
 
 ## Timed-transcript contract
 
@@ -84,6 +84,7 @@ No production endpoint, account, credential, CDN, payment service or hosting des
 |---|---|---|
 | Timed-transcript contract | Synthetic validation, binding mismatch, deterministic fingerprint, safe VTT and CLI tests | Implemented in this change |
 | Standalone player | Synthetic-only page; highlighting, gaps, seek, rate, pause/resume, manual-scroll and accessibility tests | Implemented with generated tones, Python/Node checks and explicit Chromium acceptance; other browsers/devices pending |
+| Candidate preview | Selected candidate, bound transcript and verified PCM bytes in private HTML | [Offline API implemented](candidate-preview.md); measured duration required, alignment and approval recording remain separate |
 | Candidate-aware packaging | Verified audio bytes, sidecar and metadata revision binding, allowlisted package, private receipt; separately reviewed timeline QA | Offline package implemented; measured timeline QA remains pending |
 | Restricted adapter | Explicit destination and entitlement model; denied unauthenticated/cross-scope/cache/origin requests; expiry/renewal tests | Planned |
 | Reviewed pilot | Explicit environment and separate transfer/activation authority, selected-browser checks, reconciliation and rollback evidence | Not authorized |
