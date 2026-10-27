@@ -1,0 +1,37 @@
+{
+  "text_cases": [
+    {"name": "plain", "text": "Neutral note.", "valid": true},
+    {"name": "japanese", "text": "この位置を確認。", "valid": true},
+    {"name": "newlines-and-tabs", "text": " First\n\tSecond ", "valid": true},
+    {"name": "markup-is-text", "text": "</script><img src=x onerror=alert(1)>&", "valid": true},
+    {"name": "emoji-sequence", "text": "🎵 👩‍💻", "valid": true},
+    {"name": "line-separator", "text": "First\u2028Second\u2029Third", "valid": true},
+    {"name": "empty", "text": "", "valid": false},
+    {"name": "whitespace", "text": " \t\n\u00a0\u1680\u2000\u200a\u2028\u2029\u202f\u205f\u3000\ufeff", "valid": false},
+    {"name": "bom-with-text", "text": "\ufeffnote", "valid": true},
+    {"name": "null", "text": null, "valid": false},
+    {"name": "number", "text": 5, "valid": false},
+    {"name": "nul", "text": "note\u0000", "valid": false},
+    {"name": "carriage-return", "text": "note\rnext", "valid": false},
+    {"name": "form-feed", "text": "note\f", "valid": false},
+    {"name": "file-separator", "text": "note\u001c", "valid": false},
+    {"name": "delete", "text": "note\u007f", "valid": false},
+    {"name": "c1-control", "text": "note\u0085", "valid": false},
+    {"name": "high-surrogate", "text": "note\ud800", "valid": false},
+    {"name": "low-surrogate", "text": "note\udfff", "valid": false}
+  ],
+  "anchor_cases": [
+    {"at_ms": 0, "cue_id": null},
+    {"at_ms": 999, "cue_id": null},
+    {"at_ms": 1000, "cue_id": "first"},
+    {"at_ms": 1001, "cue_id": "first"},
+    {"at_ms": 1999, "cue_id": "first"},
+    {"at_ms": 2000, "cue_id": "second"},
+    {"at_ms": 2999, "cue_id": "second"},
+    {"at_ms": 3000, "cue_id": null},
+    {"at_ms": 4000, "cue_id": "last"},
+    {"at_ms": 4999, "cue_id": "last"},
+    {"at_ms": 5000, "cue_id": null},
+    {"at_ms": 6000, "cue_id": null}
+  ]
+}
