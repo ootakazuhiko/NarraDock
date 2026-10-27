@@ -1,4 +1,4 @@
-"""Explicit Chromium note/export acceptance; all inputs and downloads are synthetic."""
+"""Explicit Chromium note/export/restore acceptance; all inputs are synthetic."""
 import argparse
 import copy
 import json
@@ -26,12 +26,14 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         context.route("http://**/*", lambda route: route.continue_()
                       if route.request.url == url else route.abort())
         context.route("https://**/*", lambda route: route.abort())
-        page = context.new_page()
         downloads, errors, external = [], [], []
-        page.on("download", lambda item: downloads.append(item))
-        page.on("pageerror", lambda error: errors.append(str(error)))
-        page.on("request", lambda request: external.append(request.url)
-                if request.url.startswith(("http:", "https:")) and request.url != url else None)
+        def watch_page(page):
+            page.on("download", lambda item: downloads.append(item))
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("request", lambda request: external.append(request.url)
+                    if request.url.startswith(("http:", "https:")) and request.url != url else None)
+        context.on("page", watch_page)
+        page = context.new_page()
         page.goto(url)
         wait_condition(page, "document.getElementById('audio').readyState >= 2")
         capture, save = page.locator("#note-capture"), page.locator("#note-save")
@@ -180,7 +182,125 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         assert not external, "Unexpected external request"
         checks.append("narrow layout, no storage, no script errors or external requests")
 
-        # Navigation to a fresh page does not import notes; synthetic demo has no review panel.
+        # Restore the actual downloaded bytes through the public Python API.
+        page.close()
+        restored, restored_receipt, _, _ = synthetic_preview(review_notes=data)
+        payload[0] = restored.decode("utf-8")
+        page = context.new_page()
+        page.goto(url)
+        wait_condition(page, "document.getElementById('audio').readyState >= 2")
+        capture, save = page.locator("#note-capture"), page.locator("#note-save")
+        text, export = page.locator("#note-text"), page.locator("#note-export")
+        audio = page.locator("#audio")
+        assert page.locator(".note-text").all_text_contents() == [note["text"] for note in loaded["notes"]]
+        assert page.locator(".note-seek").all_text_contents() == [
+            "0:01.234 / 字幕 1", "0:02.700 / 字幕のない位置", "0:24.000 / 字幕のない位置"]
+        assert "3 / 100" in page.locator("#note-count").text_content()
+        assert "読み込みました" in page.locator("#note-status").text_content()
+        assert capture.is_enabled() and export.is_enabled()
+        assert audio.evaluate("audio => audio.paused && audio.currentTime === 0")
+        assert page.evaluate("document.activeElement === document.body")
+        assert page.locator("img, iframe").count() == 0
+        assert len(downloads) == 1
+        assert restored_receipt["html"] != receipt["html"]
+        assert not restored_receipt["human_reviewed"]
+        checks.append("downloaded JSON restores literal text, order and anchors without playback, focus or download side effects")
+
+        with page.expect_download() as requested:
+            export.click()
+        restored_data = Path(requested.value.path()).read_bytes()
+        assert requested.value.failure() is None
+        assert review.load_review_notes(restored_data, candidate=candidate, transcript=transcript,
+            project_id=candidate["project_id"], expected_fingerprint=receipt["candidate_fingerprint"]) == loaded
+        checks.append("unchanged restored notes export the same validated document")
+
+        page.locator(".note-edit").first.click()
+        text.fill(loaded["notes"][0]["text"] + "\nRestored edit.")
+        save.click()
+        page.locator(".note-delete").nth(1).click()
+        page.locator(".note-seek").first.focus()
+        page.keyboard.press("Enter")
+        wait_condition(page, "Math.abs(document.getElementById('audio').currentTime - 1.234) < .001")
+        assert audio.evaluate("audio => audio.paused")
+        assert page.locator(".note-seek").first.evaluate("element => document.activeElement === element")
+        seek(2.7)
+        capture.click()
+        text.fill("Replacement gap note.")
+        save.click()
+        with page.expect_download() as requested:
+            export.click()
+        edited_data = Path(requested.value.path()).read_bytes()
+        assert requested.value.failure() is None
+        edited = review.load_review_notes(edited_data, candidate=candidate, transcript=transcript,
+            project_id=candidate["project_id"], expected_fingerprint=receipt["candidate_fingerprint"])
+        assert edited == {**loaded, "notes": [
+            {**loaded["notes"][0], "text": loaded["notes"][0]["text"] + "\nRestored edit."},
+            loaded["notes"][2], {"at_ms": 2700, "cue_id": None, "text": "Replacement gap note."}]}
+        assert len(downloads) == 3
+        checks.append("restored notes can be edited, deleted, navigated and appended with a valid new export")
+
+        page.set_viewport_size({"width": 390, "height": 844})
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        assert page.evaluate("localStorage.length === 0 && sessionStorage.length === 0")
+        if screenshots:
+            page.screenshot(path=str(screenshots / "review-restored-narrow.png"), full_page=True)
+            (screenshots / "synthetic-restored-notes.json").write_bytes(edited_data)
+        page.close()
+        page = context.new_page()
+        page.goto(url)
+        wait_condition(page, "document.getElementById('audio').readyState >= 2")
+        assert page.locator(".note-text").all_text_contents() == [note["text"] for note in loaded["notes"]]
+        assert page.locator("#audio").evaluate("audio => audio.paused && audio.currentTime === 0")
+        assert len(downloads) == 3
+        checks.append("reopening HTML restores its embedded snapshot without persisting later edits or playback position")
+
+        page.close()
+        full = {**loaded, "notes": [loaded["notes"][0]] * 100}
+        payload[0] = synthetic_preview(review_notes=json.dumps(full, ensure_ascii=False).encode())[0].decode()
+        page = context.new_page()
+        page.goto(url)
+        wait_condition(page, "document.getElementById('audio').readyState >= 2")
+        assert page.locator(".note-text").count() == 100
+        assert page.locator("#note-capture").is_disabled()
+        assert page.locator("#note-export").is_enabled()
+        page.locator(".note-edit").first.click()
+        page.locator("#note-cancel").click()
+        assert page.locator("#note-export").evaluate("element => document.activeElement === element")
+        page.locator(".note-delete").last.click()
+        assert page.locator("#note-capture").is_enabled()
+        checks.append("a full restored snapshot enforces the count limit while retaining edit and delete controls")
+
+        page.evaluate("""() => {
+          while (document.querySelector('.note-delete')) {
+            document.querySelector('.note-delete').click();
+          }
+        }""")
+        assert page.locator("#note-export").is_enabled()
+        assert page.evaluate("""() => {
+          const event = new Event('beforeunload', {cancelable: true});
+          window.dispatchEvent(event);
+          return event.defaultPrevented;
+        }""")
+        with page.expect_download() as requested:
+            page.locator("#note-export").click()
+        cleared_data = Path(requested.value.path()).read_bytes()
+        assert requested.value.failure() is None
+        assert review.load_review_notes(cleared_data, candidate=candidate, transcript=transcript,
+            project_id=candidate["project_id"], expected_fingerprint=receipt["candidate_fingerprint"]) == {
+                **loaded, "notes": []}
+        checks.append("deleting every restored note permits an empty export and retains the unload warning")
+
+        page.close()
+        payload[0] = synthetic_preview(review_notes=cleared_data)[0].decode()
+        page = context.new_page()
+        page.goto(url)
+        wait_condition(page, "document.getElementById('audio').readyState >= 2")
+        assert page.locator(".note-text").count() == 0
+        assert page.locator("#note-capture").is_enabled()
+        assert page.locator("#note-export").is_disabled()
+        assert len(downloads) == 4
+        checks.append("an empty restored snapshot starts with normal capture and no export")
+
         page.close()
         payload[0] = player.render_demo()
         demo = context.new_page()
@@ -188,6 +308,8 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         wait_condition(demo, "document.getElementById('audio').readyState >= 2")
         assert demo.locator("#review").count() == 0
         checks.append("standalone synthetic demo retains its playback-only scope")
+        assert not errors, errors
+        assert not external, "Unexpected external request"
         print(f"Chromium {browser.version}: {len(checks)} review browser checks passed")
         for item in checks:
             print("PASS:", item)

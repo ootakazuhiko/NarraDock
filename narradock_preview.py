@@ -9,11 +9,13 @@ from narradock_audio import AudioMeasurementError, MAX_CAPTURE_BYTES, read_candi
 from narradock_candidates import (CandidateError, TRANSCRIPT_SCHEMA_VERSION,
                                  candidate_fingerprint, snapshot_candidate)
 import narradock_player as player
+from narradock_review import load_review_notes
 import narradock_transcript as transcripts
 
 SCHEMA_VERSION = "candidate-audio-preview-0.1"
 MAX_PREVIEW_CUES = 1000
 MAX_ESCAPED_TRANSCRIPT_BYTES = 8 * 1024 * 1024
+MAX_ESCAPED_REVIEW_BYTES = 2 * 1024 * 1024
 MAX_HTML_BYTES = 64 * 1024 * 1024
 
 
@@ -23,11 +25,14 @@ class PreviewError(ValueError):
 
 def build_candidate_preview(document: Any, *, project_id: str, expected_fingerprint: str,
                             transcript: Any, registry: Any,
-                            project_root: Path) -> tuple[bytes, dict[str, Any]]:
+                            project_root: Path,
+                            review_notes: bytes | None = None) -> tuple[bytes, dict[str, Any]]:
     """Return UTF-8 HTML bytes and a receipt after selection and byte verification.
 
     The trusted caller owns the private result and any explicit persistence. No
     approval record is required or created. WAV metadata is copied unchanged.
+    Optional saved note bytes must match this candidate and transcript; they
+    are validated before asset I/O and embedded as an editable initial snapshot.
     """
     try:
         candidate = snapshot_candidate(document, project_id=project_id)
@@ -53,7 +58,15 @@ def build_candidate_preview(document: Any, *, project_id: str, expected_fingerpr
         payload_size = len(payload.encode("utf-8"))
         if payload_size > MAX_ESCAPED_TRANSCRIPT_BYTES:
             raise PreviewError("Preview transcript exceeds escaped limit")
-        if payload_size + 4 * ((audio["size_bytes"] + 2) // 3) > MAX_HTML_BYTES:
+        review_payload, review_size = None, 0
+        if review_notes is not None:
+            restored = load_review_notes(review_notes, candidate=candidate, project_id=project_id,
+                expected_fingerprint=revision, transcript=sidecar)
+            review_payload = player._review_json_for_html(candidate, revision, restored["notes"])
+            review_size = len(review_payload.encode("utf-8"))
+            if review_size > MAX_ESCAPED_REVIEW_BYTES:
+                raise PreviewError("Preview notes exceed escaped limit")
+        if payload_size + review_size + 4 * ((audio["size_bytes"] + 2) // 3) > MAX_HTML_BYTES:
             raise PreviewError("Preview payload exceeds HTML limit")
         # All candidate/sidecar gates precede asset I/O. Captured and measured
         # bytes come from a single guarded read, never a reopened source path.
@@ -62,7 +75,8 @@ def build_candidate_preview(document: Any, *, project_id: str, expected_fingerpr
         if measurements["duration"]["matches_declared"] is not True:
             raise PreviewError("Preview duration mismatch")
         output = player._render_page(sidecar, wav, candidate=candidate, revision=revision,
-                                     payload=payload, max_bytes=MAX_HTML_BYTES)
+                                     payload=payload, review_payload=review_payload,
+                                     max_bytes=MAX_HTML_BYTES)
     except (CandidateError, AudioMeasurementError, transcripts.TranscriptError,
             PreviewError, OSError, ValueError, TypeError, RecursionError):
         raise PreviewError("Candidate audio preview could not be created") from None

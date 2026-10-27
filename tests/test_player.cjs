@@ -118,6 +118,48 @@ test("JSON export preserves literal text, contains only binding and notes, and i
   assert.deepEqual(JSON.parse(model.serialize()), {...binding, notes: []});
 });
 
+test("restored notes retain order/text and can be edited, removed and extended", () => {
+  const {binding, transcript} = noteFixture();
+  const saved = [{at_ms: 4000, cue_id: "last", text: "Later first.\n🎵"},
+    {at_ms: 1500, cue_id: "first", text: "Earlier second."},
+    {at_ms: 6000, cue_id: null, text: "End."}];
+  const model = createReviewNotes(binding, transcript, saved);
+  assert.deepEqual(JSON.parse(model.serialize()), {...binding, notes: saved});
+  const first = model.entries()[0];
+  model.save(first, "Edited.", first.id);
+  model.remove(model.entries()[1].id);
+  model.save({at_ms: 0, cue_id: null}, "New note.");
+  assert.deepEqual(JSON.parse(model.serialize()).notes.map(note => note.at_ms), [4000, 6000, 0]);
+  assert.equal(new Set(model.entries().map(note => note.id)).size, 3);
+  assert.equal(saved[0].text, "Later first.\n🎵");
+  saved[0].text = "Changed source";
+  assert.equal(model.entries()[0].text, "Edited.");
+});
+
+test("invalid initial notes fail before a model is returned", () => {
+  const {binding, transcript} = noteFixture();
+  const good = {at_ms: 1500, cue_id: "first", text: "Note."};
+  for (const bad of [null, {}, [null], [{}], [good, {...good, cue_id: null}],
+    [{...good, extra: true}], [{...good, text: ""}], Array(101).fill(good)]) {
+    assert.throws(() => createReviewNotes(binding, transcript, bad));
+  }
+  assert.deepEqual(createReviewNotes(binding, transcript, []).entries(), []);
+});
+
+test("100 restored notes preserve the cap and allow edits and replacement", () => {
+  const {binding, transcript} = noteFixture();
+  const saved = Array.from({length: 100}, () => ({at_ms: 1500, cue_id: "first", text: "🎵".repeat(1000)}));
+  const model = createReviewNotes(binding, transcript, saved);
+  assert.equal(model.entries().length, 100);
+  assert.throws(() => model.save(saved[0], "Overflow"));
+  const first = model.entries()[0];
+  model.save(first, "Edited.", first.id);
+  model.remove(first.id);
+  model.save({at_ms: 0, cue_id: null}, "Replacement.");
+  assert.equal(model.entries().length, 100);
+  assert.equal(new Set(model.entries().map(note => note.id)).size, 100);
+});
+
 function fixture({loaded = true, sampleCues = cues} = {}) {
   const media = new EventTarget();
   Object.assign(media, {currentTime: 0, duration: 6, paused: true, ended: false, playbackRate: 1});

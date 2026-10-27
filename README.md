@@ -18,7 +18,7 @@ The [PCM WAV measurement API](docs/audio-measurements.md) measures verified cand
 
 The [candidate audio preview API](docs/candidate-preview.md) builds private HTML from a selected version 0.2 candidate, matching transcript and verified PCM WAV. It checks measured duration and embeds the exact bytes from the verification read. The page supports listening and synchronized navigation; it records no review completion or approval.
 
-[Playback notes](docs/review-notes.md) can be attached to fixed positions in that preview, edited and explicitly downloaded as private JSON. The Python loader checks the selected candidate/transcript revisions and cue references. Notes do not establish review completion, authenticated authorship or approval.
+[Playback notes](docs/review-notes.md) can be attached to fixed positions in that preview, edited and explicitly downloaded as private JSON. The Python loader checks the selected candidate/transcript revisions and cue references. Supplying saved JSON to the preview API restores those notes after validating the same revisions and re-verifying the WAV. Browser edits require an explicit export and regeneration to persist. Notes do not establish review completion, authenticated authorship or approval.
 
 **Not implemented:** synthesis, media rendering, comprehensive media QA, an approval-recording UI, upload, RSS generation, or publication. Plan entries name future operations; the `narradock.py` CLI never performs them and never records approval.
 

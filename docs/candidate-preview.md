@@ -7,6 +7,8 @@ It is an offline Python API: no file import UI, CLI, server, browser launch,
 output writing, approval recording, packaging or publication is performed.
 The returned page now has [playback notes](review-notes.md): a listener can
 annotate fixed positions and explicitly request a private JSON download.
+Previously saved notes can be supplied when generating another preview of the
+same selected candidate and transcript.
 
 ## Call and selection
 
@@ -20,6 +22,7 @@ html_bytes, receipt = build_candidate_preview(
     transcript=timed_transcript,
     registry=asset_registry,
     project_root=trusted_project_root,
+    review_notes=saved_note_json_bytes,  # Optional; omit or pass None to start empty.
 )
 ```
 
@@ -30,6 +33,13 @@ sidecar's project/content IDs, audio asset ID, SHA-256 and declared duration wit
 the candidate. Language and the complete canonical transcript fingerprint must
 also match. Version 0.1 candidates have no bound transcript and are rejected.
 These checks and the input limits run before asset I/O.
+
+Optional `review_notes` bytes pass the existing strict
+[note loader](review-notes.md#python-validation), including scope, full candidate
+and transcript revisions, cue references, text and size limits, before audio I/O.
+The generated page begins with that editable snapshot. Stale notes are rejected;
+there is no automatic migration, browser file import or automatic persistence.
+Saved notes never bypass the following source verification.
 
 `read_candidate_wav` captures and measures the same stream delivered by the
 guarded asset verifier. Only after its final source-change checks, registry and
@@ -51,6 +61,8 @@ return that observation with `duration_mismatch` in their findings.
 | WAV | 32 MiB, with the existing limited signed 16-bit PCM profile |
 | Transcript | At most 1,000 cues and 2 MiB canonical UTF-8 JSON |
 | Escaped transcript payload | 8 MiB UTF-8 after HTML raw-text escaping |
+| Saved note JSON | 512 KiB UTF-8, at most 100 notes of 1,000 Unicode code points each |
+| Escaped note payload | 2 MiB UTF-8 after HTML raw-text escaping |
 | Complete HTML | 64 MiB UTF-8, including base64 audio and inline assets |
 
 The exact supported WAV profile and its chunk limits are in
@@ -71,14 +83,14 @@ caller handles errors and owns any explicit saving of the returned UTF-8 bytes.
 The page shows the selected title, credits and candidate identity along with
 native audio controls, cue navigation, rate control and optional auto-follow.
 It does not autoplay. The content language is set independently of the Japanese
-interface. Metadata is HTML-escaped, transcript JSON is escaped for raw-text
+interface. Metadata is HTML-escaped, transcript and note JSON are escaped for raw-text
 context, and cue text is inserted with `textContent`. The same strict inline
 script/style hashes and embedded-audio content policy as the demo apply. The
 page makes no network requests and uses no storage, external fonts or scripts.
 
 **The HTML is private content, not a sanitized distribution artifact.** It
 contains the exact original WAV, including permitted opaque `JUNK`/`LIST/INFO`
-metadata, the transcript and selected display metadata. Those fields can
+metadata, the transcript, selected display metadata and any initial notes. Those fields can
 themselves contain private information. Registry paths are not rendered, but
 neither content inspection nor metadata removal is performed. Copying the HTML
 copies its embedded media and text; the content policy is not access control.
@@ -89,7 +101,9 @@ The `candidate-audio-preview-0.1` receipt contains `preview_created: true`,
 `scope: candidate_local_preview_only`, project/content IDs, full candidate and
 transcript fingerprints, the existing byte-verified PCM `measurements`, and
 `html.size_bytes`/`html.sha256` for these exact output bytes. It contains no
-source paths, transcript text, titles, credits or waveform. It is not signed or
+source paths, transcript or note text, titles, credits or waveform. The HTML
+identity includes the initial note snapshot; later browser edits do not update
+the generated HTML or receipt. It is not signed or
 an authenticated decision record. Its `rights_verified`, `media_qa_passed`,
 `human_reviewed`, `transcript_alignment_verified`, `packaged`,
 `external_transfer` and `publication` fields are all false.
@@ -104,7 +118,9 @@ candidate, transcript, package and demo APIs retain their contracts.
 
 Python tests use temporary synthetic PCM and cover revision/scope binding,
 same-read capture, final verifier failure, duration mismatch/rounding, bounds,
-literal rendering, source metadata preservation and receipt semantics. The
+literal rendering, source metadata preservation and receipt semantics. Saved-note
+tests also cover rejection before audio I/O, raw-text escaping, bounds, snapshot
+isolation and fresh source verification. The
 existing Node controller tests also apply. `tests/check_preview_browser.py` is
 an explicit acceptance tool for an already installed Playwright/Chromium; it
 constructs a candidate from generated tones, then serves only its in-memory

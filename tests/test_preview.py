@@ -15,6 +15,7 @@ import narradock_audio as audio
 import narradock_candidates as candidates
 import narradock_player as player
 import narradock_preview as previews
+import narradock_review as reviews
 import narradock_transcript as transcripts
 from test_player import Page
 
@@ -103,6 +104,139 @@ class PreviewTests(unittest.TestCase):
 
     def test_result_is_repeatable(self):
         self.assertEqual(self.build(), self.build())
+
+    def notes_document(self):
+        return {"schema_version": reviews.SCHEMA_VERSION, "project_id": self.project,
+            "content_id": self.candidate["content_id"], "candidate_fingerprint": self.revision,
+            "transcript_fingerprint": self.candidate["transcript"]["fingerprint"],
+            "notes": [{"at_ms": 4, "cue_id": "last", "text": "Later first."},
+                      {"at_ms": 1, "cue_id": "first", "text": "Earlier second."},
+                      {"at_ms": 2, "cue_id": None, "text": "Gap."},
+                      {"at_ms": 6, "cue_id": None, "text": "End."}]}
+
+    def test_optional_saved_notes_round_trip_without_changing_approval_receipt(self):
+        original = self.notes_document()
+        data = json.dumps(original, ensure_ascii=False).encode("utf-8")
+        baseline, baseline_receipt = self.build()
+        self.assertEqual((baseline, baseline_receipt), self.build(review_notes=None))
+        with patch.object(audio, "copy_verified_asset", wraps=audio.copy_verified_asset) as consume:
+            output, receipt = self.build(review_notes=data)
+        consume.assert_called_once()
+        page = Page(output.decode("utf-8"))
+        payload = next(text for _, attrs, text in page.blocks if attrs.get("id") == "review-data")
+        self.assertEqual(original, json.loads(payload))
+        self.assertEqual(original, reviews.load_review_notes(payload.encode(), candidate=self.candidate,
+            transcript=self.transcript, project_id=self.project, expected_fingerprint=self.revision))
+        self.assertEqual(baseline_receipt.keys(), receipt.keys())
+        for key in receipt.keys() - {"html"}:
+            self.assertEqual(baseline_receipt[key], receipt[key])
+        self.assertNotEqual(baseline_receipt["html"], receipt["html"])
+        self.assertEqual(hashlib.sha256(output).hexdigest(), receipt["html"]["sha256"])
+        self.assertEqual([self.asset], list(self.root.iterdir()))
+        self.assertEqual(self.wav, self.asset.read_bytes())
+
+    def test_empty_saved_snapshot_is_valid_and_contains_no_completion_claim(self):
+        document = self.notes_document()
+        document["notes"] = []
+        output, receipt = self.build(review_notes=json.dumps(document).encode())
+        page = Page(output.decode())
+        payload = next(text for _, attrs, text in page.blocks if attrs.get("id") == "review-data")
+        self.assertEqual([], json.loads(payload)["notes"])
+        self.assertIs(False, receipt["human_reviewed"])
+        self.assertEqual((output, receipt), self.build(review_notes=json.dumps(document).encode()))
+
+    def test_saved_note_json_and_size_failures_reject_before_audio_io(self):
+        data = json.dumps(self.notes_document()).encode()
+        bad_inputs = (b"", data.decode(), bytearray(data), b"null", b"\xff", data + b" " * reviews.MAX_BYTES,
+                      data.replace(b'"at_ms": 4', b'"at_ms": 4, "at_ms": 4'),
+                      data.replace(b'"at_ms": 4', b'"at_ms": NaN'))
+        for item in bad_inputs:
+            with self.subTest(kind=type(item).__name__):
+                self.reject_before_io(review_notes=item)
+
+    def test_stale_saved_notes_reject_changed_candidate_or_transcript_before_io(self):
+        data = json.dumps(self.notes_document()).encode()
+        before_candidate, before_transcript = copy.deepcopy(self.candidate), copy.deepcopy(self.transcript)
+        for change in ("title", "credits", "audio", "text", "timing"):
+            self.candidate, self.transcript = copy.deepcopy(before_candidate), copy.deepcopy(before_transcript)
+            if change == "title": self.candidate["metadata"]["title"] = "Different title"
+            if change == "credits": self.candidate["metadata"]["credits"] = []
+            if change == "audio":
+                self.candidate["audio"]["sha256"] = self.transcript["audio"]["sha256"] = "b" * 64
+            if change == "text": self.transcript["cues"][0]["text"] = "Changed text."
+            if change == "timing": self.transcript["cues"][0]["end_ms"] = 1
+            self.reselect(transcript=True)
+            with self.subTest(change=change):
+                self.reject_before_io(review_notes=data)
+
+    def test_saved_note_scope_time_cue_and_limits_reject_before_io(self):
+        for change in ("project", "scope", "cue", "time", "type", "text", "count", "approval"):
+            document = self.notes_document()
+            if change == "project": document["project_id"] = "other-project"
+            if change == "scope": document["content_id"] = "other-content"
+            if change == "cue": document["notes"][0]["cue_id"] = "first"
+            if change == "time": document["notes"][0]["at_ms"] = 7
+            if change == "type": document["notes"][0]["at_ms"] = True
+            if change == "text": document["notes"][0]["text"] = "x" * (reviews.MAX_TEXT + 1)
+            if change == "count": document["notes"] = document["notes"][:1] * (reviews.MAX_NOTES + 1)
+            if change == "approval": document["approved"] = True
+            with self.subTest(change=change):
+                self.reject_before_io(review_notes=json.dumps(document).encode())
+
+    def test_saved_notes_are_escaped_for_script_data_without_losing_text(self):
+        document = self.notes_document()
+        literal = '</ScRiPt><img src=x onerror="alert(1)">&\u2028\u2029\n🎵'
+        document["notes"][0]["text"] = literal
+        output, _ = self.build(review_notes=json.dumps(document, ensure_ascii=False).encode())
+        page = Page(output.decode())
+        self.assertEqual(4, sum(tag == "script" for tag, _ in page.tags))
+        self.assertFalse(any(tag in {"img", "iframe"} for tag, _ in page.tags))
+        payload = next(text for _, attrs, text in page.blocks if attrs.get("id") == "review-data")
+        self.assertNotIn("<", payload)
+        self.assertNotIn("\u2028", payload)
+        self.assertNotIn("\u2029", payload)
+        self.assertEqual(literal, json.loads(payload)["notes"][0]["text"])
+
+    def test_restored_notes_respect_escaped_payload_and_final_output_limits(self):
+        document = self.notes_document()
+        document["notes"][0]["text"] = "<" * 100
+        data = json.dumps(document).encode()
+        review_size = len(player._review_json_for_html(self.candidate, self.revision, document["notes"]).encode())
+        with patch.object(previews, "MAX_ESCAPED_REVIEW_BYTES", review_size - 1):
+            self.reject_before_io(review_notes=data)
+        with patch.object(previews, "MAX_ESCAPED_REVIEW_BYTES", review_size):
+            output, _ = self.build(review_notes=data)
+        minimum_without_notes = len(player._json_for_html(self.transcript).encode()) + 4 * ((len(self.wav) + 2) // 3)
+        with patch.object(previews, "MAX_HTML_BYTES", minimum_without_notes + review_size - 1):
+            self.reject_before_io(review_notes=data)
+        with patch.object(previews, "MAX_HTML_BYTES", len(output)):
+            self.assertEqual(output, self.build(review_notes=data)[0])
+        with patch.object(previews, "MAX_HTML_BYTES", len(output) - 1):
+            with self.assertRaises(previews.PreviewError):
+                self.build(review_notes=data)
+
+    def test_restored_notes_accept_full_unicode_count_and_are_frozen_before_read(self):
+        document = self.notes_document()
+        document["notes"] = [{"at_ms": 1, "cue_id": "first", "text": "🎵" * reviews.MAX_TEXT}
+                             for _ in range(reviews.MAX_NOTES)]
+        data = json.dumps(document, ensure_ascii=False).encode()
+        expected = self.build(review_notes=data)
+        original = audio.copy_verified_asset
+        def mutate(*args, **kwargs):
+            self.candidate["metadata"]["title"] = "Changed during read"
+            self.transcript["cues"][0]["text"] = "Changed during read"
+            document["notes"][0]["text"] = "Changed original notes"
+            return original(*args, **kwargs)
+        with patch.object(audio, "copy_verified_asset", side_effect=mutate):
+            self.assertEqual(expected, self.build(review_notes=data))
+
+    def test_valid_saved_notes_do_not_bypass_current_source_verification(self):
+        data = json.dumps(self.notes_document()).encode()
+        self.asset.write_bytes(self.wav[:-2] + b"xx")
+        with patch.object(player, "_render_page") as render:
+            with self.assertRaises(previews.PreviewError):
+                self.build(review_notes=data)
+            render.assert_not_called()
 
     def test_old_candidate_schema_and_stale_fingerprints_fail_before_io(self):
         self.reject_before_io(expected_fingerprint="b" * 64)
