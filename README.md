@@ -26,6 +26,8 @@ Hashes in `examples/audio-only.json` and `examples/video-enabled.json` remain pl
 
 The [standalone player demo](docs/standalone-player.md) renders one self-contained HTML page with generated test tones, synchronized cue navigation, playback-rate controls and optional auto-follow. It accepts no real-media inputs and records no review decisions. Python generates the page; its controls run in the browser without a server or third-party scripts.
 
+The shared player and candidate previews support [literal transcript search](docs/standalone-player.md#search-the-current-transcript). Search the current subtitles and select a result to seek while retaining the playing/paused state. Search terms are kept only in the page and do not change saved notes or candidate revisions.
+
 ## Product boundaries
 
 Shared code and neutral examples belong here. Project scripts, media, brands, voice selections, operational credentials, reviews, caches, logs, and publication records belong in isolated user workspaces. This repository is not a content-hosting location.

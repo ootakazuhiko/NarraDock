@@ -74,6 +74,7 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         assert page.locator("img").count() == 0
         assert page.locator("#title").get_attribute("lang") == "en"
         assert page.locator("#transcript").get_attribute("lang") == "en"
+        assert page.locator("#search-results").get_attribute("lang") == "en"
         assert page.locator(".identity code").text_content() == receipt["candidate_fingerprint"]
         checks.append("literal metadata/cues, language and selected candidate revision")
 
@@ -85,6 +86,21 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         }""")
         assert digest == hashlib.sha256(wav).hexdigest() == receipt["measurements"]["audio"]["sha256"]
         checks.append("browser receives exactly the measured and verified WAV")
+
+        page.locator("#transcript-search summary").click()
+        page.locator("#search-query").fill("<img")
+        page.locator("#search-query").press("Enter")
+        assert page.locator(".search-result").count() == 1
+        assert page.locator(".search-result .cue-text").text_content() == literal
+        page.locator(".search-result").focus()
+        page.keyboard.press("Enter")
+        wait_condition(page, "Math.abs(document.getElementById('audio').currentTime - 1) < .001")
+        assert audio.evaluate("audio => audio.paused")
+        assert page.locator(".search-result").evaluate("element => document.activeElement === element")
+        assert page.locator("img").count() == 0
+        assert page.locator(".identity code").text_content() == receipt["candidate_fingerprint"]
+        page.locator("#search-clear").click()
+        checks.append("candidate search retains literal text, language, selected revision and paused navigation")
 
         page.locator("#cue-2").focus()
         page.keyboard.press("Enter")

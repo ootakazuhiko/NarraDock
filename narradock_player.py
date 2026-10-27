@@ -171,6 +171,15 @@ def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
 </section>
 <section class="panel" aria-labelledby="transcript-title">
 <div class="transcript-head"><h2 id="transcript-title">字幕</h2><label class="follow-control"><input id="follow" type="checkbox" checked>自動追従</label></div>
+<details id="transcript-search" class="transcript-search">
+<summary>字幕を検索</summary>
+<label for="search-query">検索する言葉</label>
+<div class="search-controls"><input id="search-query" type="search" maxlength="200" autocomplete="off" spellcheck="false" aria-describedby="search-help">
+<button id="search-submit" type="button">検索</button><button id="search-clear" type="button">クリア</button></div>
+<p id="search-help" class="hint">100文字以内。大文字・小文字や空白を区別して部分一致で探します。Enterでも検索できます。</p>
+<p id="search-status" class="status" role="status" aria-live="polite"></p>
+<ol id="search-results" lang="{language}" class="search-results" aria-label="字幕の検索結果"></ol>
+</details>
 <ol id="transcript" lang="{language}" class="transcript" tabindex="0" aria-label="字幕一覧。項目を選ぶとその時刻へ移動します。"></ol>
 <p class="hint">スクロールやキーボード操作で追従を停止。チェックを入れると再開します。</p>
 <p id="status" class="status" role="status" aria-live="polite"></p>

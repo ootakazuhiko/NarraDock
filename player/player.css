@@ -42,7 +42,17 @@ select { font: inherit; color: inherit; border: 1px solid #82958a; background: #
 .transcript-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .transcript-head h2 { margin: 0; }
 .follow-control { display: flex; align-items: center; gap: 8px; font-size: 14px; min-height: 44px; cursor: pointer; }
-input { width: 18px; height: 18px; accent-color: #216146; }
+input[type="checkbox"] { width: 18px; height: 18px; accent-color: #216146; }
+.transcript-search { margin-bottom: 16px; border-bottom: 1px solid #d5ddd4; padding-bottom: 12px; }
+.transcript-search summary { cursor: pointer; padding: 10px 0; font-size: 14px; color: #415b53; }
+.transcript-search label { display: block; margin: 10px 0 8px; font-size: 14px; }
+.search-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.search-controls input { flex: 1 1 140px; min-width: 0; width: 100%; font: inherit; padding: 10px; color: inherit; background: #fff; border: 1px solid #8c9b91; border-radius: 8px; }
+.search-controls button { font: inherit; padding: 10px 12px; border: 1px solid #8c9b91; border-radius: 8px; background: #f5f6f1; color: #193b32; cursor: pointer; }
+.search-results { list-style: none; padding: 3px; margin: 12px 0 0; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.search-results:empty, .transcript-search .status:empty { display: none; }
+.search-result { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; width: 100%; padding: 12px 8px; border: 1px solid transparent; border-radius: 8px; text-align: left; font: inherit; color: inherit; line-height: 1.65; background: #f0f4eb; cursor: pointer; }
+.search-results li + li { margin-top: 8px; }
 .transcript { list-style: none; padding: 3px; margin: 0; max-height: 392px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .transcript li + li { margin-top: 8px; }
 .cue { font: inherit; color: inherit; width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 9px; padding: 15px 12px; cursor: pointer; line-height: 1.65; }

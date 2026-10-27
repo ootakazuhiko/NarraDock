@@ -53,7 +53,7 @@ The player adapter must provide audio play/pause, seek, elapsed/total time, play
 
 Use the media presentation clock, not a wall-clock timer. Re-evaluate the active cue after seeking, resuming, rate changes and background/foreground transitions; clear highlighting in gaps and at the end. Represent transcript text with `textContent` or an equivalent safe text sink, never unsanitized `innerHTML`.
 
-Auto-follow must be user-controllable and stop fighting deliberate manual scrolling. Do not steal keyboard focus while playback advances. Provide keyboard operation, meaningful control labels, visible focus, readable contrast, reduced-motion behavior and screen-reader access without announcing every timing update. Do not autoplay audible media. Transcript hiding, chapters and search are optional extensions.
+Auto-follow must be user-controllable and stop fighting deliberate manual scrolling. Do not steal keyboard focus while playback advances. Provide keyboard operation, meaningful control labels, visible focus, readable contrast, reduced-motion behavior and screen-reader access without announcing every timing update. Do not autoplay audible media. Literal [transcript search](standalone-player.md#search-the-current-transcript) is implemented in the shared player; transcript hiding and chapters remain optional future extensions.
 
 Resume position must be scoped to the exact content/media revision; account-level sync is a separate consent and data-retention decision. Changing an episode or signing out must not reuse another user's playback grant or protected transcript. Browser testing must cover desktop and mobile, including Safari's native media path and other selected browser engines. No browser compatibility is claimed by Python tests.
 
