@@ -12,6 +12,7 @@ NarraDock is a public personal product at `ootakazuhiko/NarraDock`. It is not an
 | Audio publication (#2) | Intake contract, local package, destination adapter, reconciliation | Offline candidate-bound local packaging with an optional versioned transcript track implemented; destination adapters and reconciliation pending |
 | Isolation (#3) | Public-file checks, asset/credential boundaries, independent acceptance | Limited static checks proposed; runtime isolation pending |
 | Maintainer setup (#4) | License activation, rules, security intake, distribution decisions | License terms approved; activation and remaining administration pending |
+| Script intake | Explicit body/directive separation and revision identity | Bounded offline script-block API implemented; preserves text and distinguishes whole-script/body revisions. Speech/renderer adapters and regeneration decisions pending |
 | Media execution | Existing-audio import, synthesis/render adapters, measured QA, review | Candidate-bound PCM WAV measurements, synthetic player, verified candidate preview, literal transcript search and time-bound note export/validation/restoration implemented; synthesis/render adapters, broader QA and approval recording UI pending |
 
 First complete one neutral audio-only local-package workflow, then a second neutral video-enabled workflow. Do not delay generic local development solely because a publication provider has not been selected. Do not turn operational content into framework fixtures.

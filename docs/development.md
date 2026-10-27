@@ -24,6 +24,13 @@ git diff --check
 
 Stop after any nonzero exit. Expected: all tests pass; public surface check passes; validation says `structure_only`; both plans say `plan_only` and all execution/transfer/publication flags remain false. The audio-only plan contains no video-render step. The manifest CLI example commands create, resolve, synthesize or upload no assets. Test temporary directories are synthetic and automatically removed. `-B` prevents bytecode output. Tracked content should be unchanged by validation.
 
+The [script-block contract](script-contract.md) is covered by the same discovered
+Python suite. Its tests use neutral in-memory text and the tracked example to
+check parsing/bounds, preserved Unicode and line endings, full/body revision
+identity, selection rejection and non-execution of directives. They do not
+require a speech engine or browser. Browser checks below remain separate
+evidence for changes to the player; they are not script-adapter acceptance.
+
 ## Failure and recovery
 
 Validation errors return exit 2 for the CLI and exit 1 for the public-tree checker. Do not include an actual manifest, credential, local path, or environment dump in public diagnostics. Report command, exit code, sanitized category, and the assigned revision. Preserve needed evidence in the session's approved private evidence location, which must be assigned before real-data work.
