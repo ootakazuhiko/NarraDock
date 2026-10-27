@@ -28,7 +28,7 @@ def synthetic_preview_inputs():
     return candidate, sidecar, wav, literal
 
 
-def synthetic_preview():
+def synthetic_preview(*, review_notes=None):
     candidate, sidecar, wav, literal = synthetic_preview_inputs()
     revision = candidates.candidate_fingerprint(candidate, project_id=candidate["project_id"])
     registry = {"schema_version": "asset-registry-0.1", "project_id": candidate["project_id"],
@@ -38,7 +38,8 @@ def synthetic_preview():
         root = Path(directory).resolve()
         (root / "synthetic.wav").write_bytes(wav)
         output, receipt = previews.build_candidate_preview(candidate, project_id=candidate["project_id"],
-            expected_fingerprint=revision, transcript=sidecar, registry=registry, project_root=root)
+            expected_fingerprint=revision, transcript=sidecar, registry=registry, project_root=root,
+            review_notes=review_notes)
     return output, receipt, literal, wav
 
 

@@ -156,13 +156,13 @@ function noteAnchor(cues, durationMs, seconds) {
   return {at_ms, cue_id: index < 0 ? null : cues[index].id};
 }
 
-function createReviewNotes(binding, transcript) {
+function createReviewNotes(binding, transcript, initialNotes = []) {
   const selected = {...binding};
   const cues = transcript.cues.map(cue => ({...cue}));
   const duration = transcript.audio.duration_ms;
   let sequence = 0;
   let notes = [];
-  return {
+  const model = {
     entries() { return notes.map(note => ({...note})); },
     save(anchor, text, id = null) {
       const index = id === null ? -1 : notes.findIndex(note => note.id === id);
@@ -183,12 +183,26 @@ function createReviewNotes(binding, transcript) {
       return output;
     }
   };
+  // Initial notes come only from the generator's revision-validated snapshot.
+  // Initialize before exposing the model: a failure cannot leave partial state.
+  if (!Array.isArray(initialNotes) || initialNotes.length > NOTE_LIMITS.count) {
+    throw new Error("Invalid initial notes");
+  }
+  for (const note of initialNotes) {
+    if (!note || Object.keys(note).sort().join(",") !== "at_ms,cue_id,text") {
+      throw new Error("Invalid initial note");
+    }
+    model.save(note, note.text);
+  }
+  return model;
 }
 
 function mountReviewNotes(document, window, transcript, media, controller) {
   const data = document.getElementById("review-data");
   if (!data) return null;
-  const model = createReviewNotes(JSON.parse(data.textContent), transcript);
+  const {notes = [], ...binding} = JSON.parse(data.textContent);
+  const model = createReviewNotes(binding, transcript, notes);
+  const hasInitialNotes = notes.length > 0;
   const capture = document.getElementById("note-capture");
   const editor = document.getElementById("note-editor");
   const input = document.getElementById("note-text");
@@ -210,7 +224,7 @@ function mountReviewNotes(document, window, transcript, media, controller) {
     const count = model.entries().length;
     capture.disabled = !available || pending !== null || count >= NOTE_LIMITS.count;
     save.disabled = !pending || !validNoteText(input.value);
-    download.disabled = count === 0 || pending !== null;
+    download.disabled = (count === 0 && !hasInitialNotes) || pending !== null;
     document.getElementById("note-limit").textContent = `${[...input.value].length} / 1,000 文字`;
     document.getElementById("note-count").textContent = `${count} / 100 件`;
     list.querySelectorAll(".note-seek").forEach(button => { button.disabled = !available; });
@@ -297,7 +311,7 @@ function mountReviewNotes(document, window, transcript, media, controller) {
     revokeTimer = objectURL = null;
   }
   download.addEventListener("click", () => {
-    if (pending || model.entries().length === 0) return;
+    if (pending || (model.entries().length === 0 && !hasInitialNotes)) return;
     let link = null;
     try {
       const output = model.serialize();
@@ -317,12 +331,13 @@ function mountReviewNotes(document, window, transcript, media, controller) {
   });
   window.addEventListener("pagehide", releaseURL);
   window.addEventListener("beforeunload", event => {
-    if (model.entries().length || (pending && input.value)) {
+    if (hasInitialNotes || model.entries().length || (pending && input.value)) {
       event.preventDefault();
       event.returnValue = "";
     }
   });
-  controls();
+  renderList();
+  if (model.entries().length) status.textContent = "保存済みのメモを読み込みました。変更後はJSONで保存してください。";
   return {setAvailable(value) {
     if (available !== value) { available = value; controls(); }
   }};

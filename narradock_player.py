@@ -60,10 +60,25 @@ def synthetic_fixture() -> tuple[dict, bytes]:
 
 
 def _json_for_html(document: dict) -> str:
+    return _escape_json_for_html(canonical_transcript_bytes(document).decode("utf-8"))
+
+
+def _escape_json_for_html(text: str) -> str:
     # Script data is a raw-text HTML context even when its MIME type is JSON.
-    text = canonical_transcript_bytes(document).decode("utf-8")
     return (text.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
+def _review_json_for_html(candidate: dict, revision: str, notes: list | None = None) -> str:
+    """Encode fixed binding fields and already validated notes for script data."""
+    from narradock_review import SCHEMA_VERSION as REVIEW_SCHEMA
+    binding = {"schema_version": REVIEW_SCHEMA,
+        "project_id": candidate["project_id"], "content_id": candidate["content_id"],
+        "candidate_fingerprint": revision,
+        "transcript_fingerprint": candidate["transcript"]["fingerprint"]}
+    if notes is not None:
+        binding["notes"] = notes
+    return _escape_json_for_html(json.dumps(binding, ensure_ascii=False, sort_keys=True))
 
 
 def render_demo() -> str:
@@ -73,6 +88,7 @@ def render_demo() -> str:
 
 def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
                  revision: str = "", payload: str | None = None,
+                 review_payload: str | None = None,
                  max_bytes: int | None = None) -> bytes:
     """Internal renderer for fixed demo or previously verified preview inputs."""
     script = (SOURCE_ROOT / "player/player.js").read_text(encoding="utf-8")
@@ -98,19 +114,15 @@ def _render_page(transcript: dict, wav: bytes, *, candidate: dict | None = None,
     identity = ""
     review = ""
     if preview:
-        from narradock_review import SCHEMA_VERSION as REVIEW_SCHEMA
         credits = "".join("<li>" + html.escape(credit) + "</li>" for credit in candidate["metadata"]["credits"])
         identity = (f'<details class="identity"><summary>候補の識別情報とクレジット</summary>'
                     f'<p>プロジェクト: {html.escape(candidate["project_id"])} / コンテンツ: {html.escape(candidate["content_id"])}</p>'
                     f'<code>{html.escape(revision)}</code><ul lang="{language}">{credits}</ul></details>')
-        # These fixed fields contain validated ASCII identifiers/digests only.
-        binding = json.dumps({"schema_version": REVIEW_SCHEMA,
-            "project_id": candidate["project_id"], "content_id": candidate["content_id"],
-            "candidate_fingerprint": revision,
-            "transcript_fingerprint": candidate["transcript"]["fingerprint"]}, sort_keys=True)
+        binding = (_review_json_for_html(candidate, revision)
+                   if review_payload is None else review_payload)
         review = f'''<section id="review" class="panel review" aria-labelledby="review-title">
 <div class="review-head"><h2 id="review-title" tabindex="-1">視聴メモ</h2><span id="note-count">0 / 100 件</span></div>
-<p class="hint">気になった位置にメモを残せます。ページを閉じると消えるため、JSONで保存してください。承認の記録にはなりません。</p>
+<p class="hint">気になった位置にメモを残せます。この画面での変更は自動保存されません。JSONで保存してください。承認の記録にはなりません。</p>
 <button id="note-capture" type="button" disabled>この位置にメモ</button>
 <div id="note-editor" hidden>
 <p id="note-anchor" class="note-anchor"></p>
