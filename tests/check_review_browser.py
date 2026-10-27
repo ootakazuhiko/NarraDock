@@ -54,7 +54,16 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         anchor = page.locator("#note-anchor").text_content()
         assert "0:01.234" in anchor
         assert capture.is_disabled() and export.is_disabled()
-        seek(6.5)
+        text.fill("Draft remains while searching.")
+        page.locator("#transcript-search summary").click()
+        page.locator("#search-query").fill(transcript["cues"][3]["text"])
+        page.locator("#search-query").press("Enter")
+        page.locator(".search-result").first.click()
+        wait_condition(page, "Math.abs(document.getElementById('audio').currentTime - 6.5) < .001")
+        assert page.locator("#note-anchor").text_content() == anchor
+        assert text.input_value() == "Draft remains while searching."
+        assert export.is_disabled()
+        checks.append("search navigation leaves the pending note text and captured anchor unchanged")
         literal = '</script><img src=x onerror="alert(1)">&\n🎵'
         text.fill(literal)
         save.click()
@@ -205,6 +214,15 @@ def check(browser_executable: str, screenshots: Path | None = None) -> None:
         assert restored_receipt["html"] != receipt["html"]
         assert not restored_receipt["human_reviewed"]
         checks.append("downloaded JSON restores literal text, order and anchors without playback, focus or download side effects")
+
+        page.locator("#transcript-search summary").click()
+        page.locator("#search-query").fill("<img")
+        page.locator("#search-query").press("Enter")
+        page.locator(".search-result").click()
+        wait_condition(page, "Math.abs(document.getElementById('audio').currentTime - 1) < .001")
+        assert page.locator(".note-text").all_text_contents() == [note["text"] for note in loaded["notes"]]
+        assert len(downloads) == 1
+        checks.append("search in a restored preview leaves notes unchanged and triggers no export")
 
         with page.expect_download() as requested:
             export.click()

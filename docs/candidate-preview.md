@@ -82,6 +82,10 @@ caller handles errors and owns any explicit saving of the returned UTF-8 bytes.
 
 The page shows the selected title, credits and candidate identity along with
 native audio controls, cue navigation, rate control and optional auto-follow.
+The shared [transcript search](standalone-player.md#search-the-current-transcript)
+finds literal text within this selected transcript and seeks only when a result
+is selected. It keeps search state in page memory and leaves candidate identity,
+transcript order and note anchors unchanged.
 It does not autoplay. The content language is set independently of the Japanese
 interface. Metadata is HTML-escaped, transcript and note JSON are escaped for raw-text
 context, and cue text is inserted with `textContent`. The same strict inline

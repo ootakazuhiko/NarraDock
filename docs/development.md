@@ -38,6 +38,13 @@ NarraDock CI runs Python tests, Node standard-library player controller tests, i
 
 The [synthetic player](standalone-player.md) has a separate `tests/check_player_browser.py` acceptance tool using an already installed Playwright and selected Chromium executable. This optional development capability is not a runtime dependency and is not installed automatically. Run it only in an assigned environment; record the browser version, outcomes and any screenshots privately. Node/Python CI does not establish browser compatibility. The tool serves one generated in-memory page on loopback and does not expose working-directory files. Safari, mobile devices, screen readers and real-media acceptance require separate evidence.
 
+Transcript-search acceptance includes explicit search/selection, literal text,
+Unicode bounds, keyboard focus, playing/paused navigation, stale results,
+reload/error gating and narrow layout. IME composition events are simulated;
+native OS input-method behavior still needs separate acceptance. Candidate and
+review browser tools verify search against verified previews and its coexistence
+with pending/restored notes. No search text or result is persisted or uploaded.
+
 `tests/check_preview_browser.py` uses the same browser setup to verify a [candidate preview](candidate-preview.md) built from generated tones and a matching synthetic registry/candidate/transcript. It checks actual playback, selected-byte identity, literal metadata, synchronization and narrow-screen layout. Both tools accept `--browser-executable` and an optional private `--screenshots` directory. Neither accepts real project data.
 
 `tests/check_review_browser.py` uses the same arguments and synthetic setup for [playback notes](review-notes.md). It checks frozen anchors, editing/navigation, Unicode limits, focus at the count limit, export failure retention, and a real JSON download validated against the original candidate by Python. It then regenerates a preview from those downloaded bytes and checks restored literal text, editing/navigation, unchanged and edited re-export, empty export after deleting all restored notes, and reopening the embedded snapshot without automatic persistence. Its optional output directory also retains the synthetic JSON exports. No real review evidence is used or uploaded.

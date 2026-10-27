@@ -27,6 +27,95 @@ function mediaMilliseconds(seconds) {
     ? nearest : value;
 }
 
+const SEARCH_QUERY_LIMIT = 100;
+
+function searchCueIndices(cues, query) {
+  if (typeof query !== "string" || query.length > SEARCH_QUERY_LIMIT * 2) {
+    throw new Error("Invalid search query");
+  }
+  const points = [...query];
+  if (points.length > SEARCH_QUERY_LIMIT || points.some(char => {
+    const code = char.codePointAt(0);
+    return code >= 0xd800 && code <= 0xdfff;
+  })) {
+    throw new Error("Invalid search query");
+  }
+  if (!query.trim()) return [];
+  // Literal, case-sensitive matching within each validated cue; no regex or normalization.
+  return cues.flatMap((cue, index) => cue.text.includes(query) ? [index] : []);
+}
+
+function mountTranscriptSearch(document, transcript, controller) {
+  const input = document.getElementById("search-query");
+  const submit = document.getElementById("search-submit");
+  const clear = document.getElementById("search-clear");
+  const results = document.getElementById("search-results");
+  const status = document.getElementById("search-status");
+  let available = false;
+  let composing = false;
+  function reset() {
+    results.replaceChildren();
+    status.textContent = "";
+  }
+  function search() {
+    if (composing) return;
+    reset();
+    let indices;
+    try { indices = searchCueIndices(transcript.cues, input.value); }
+    catch {
+      status.textContent = "検索語を確認してください（100文字以内）。";
+      return;
+    }
+    for (const index of indices) {
+      const cue = transcript.cues[index];
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "search-result";
+      button.disabled = !available;
+      const time = document.createElement("span");
+      time.className = "cue-time";
+      time.textContent = `${formatTime(cue.start_ms)}.${String(cue.start_ms % 1000).padStart(3, "0")}`;
+      const text = document.createElement("span");
+      text.className = "cue-text";
+      text.textContent = cue.text;
+      button.append(time, text);
+      button.setAttribute("aria-label", `${time.textContent} に移動: ${cue.text}`);
+      button.addEventListener("click", () => {
+        if (!available) return;
+        controller.manualScroll();
+        controller.seek(cue.start_ms / 1000);
+      });
+      item.append(button);
+      results.append(item);
+    }
+    status.textContent = !input.value.trim() ? "検索する言葉を入力してください。"
+      : indices.length ? `${indices.length}件見つかりました。選ぶとその時刻へ移動します。`
+      : "一致する字幕はありません。";
+  }
+  input.addEventListener("input", reset);
+  input.addEventListener("compositionstart", () => { composing = true; reset(); });
+  input.addEventListener("compositionend", () => { composing = false; });
+  input.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && !composing) {
+      event.preventDefault();
+      search();
+    }
+  });
+  submit.addEventListener("click", search);
+  clear.addEventListener("click", () => {
+    input.value = "";
+    reset();
+    input.focus();
+  });
+  results.addEventListener("focusin", () => controller.manualScroll());
+  return {setAvailable(value) {
+    if (value === available) return;
+    available = value;
+    results.querySelectorAll("button").forEach(button => { button.disabled = !value; });
+  }};
+}
+
 function createController({media, cues, durationMs, view, requestFrame, cancelFrame, visible}) {
   let following = true;
   let unavailable = false;
@@ -371,6 +460,7 @@ function mountPlayer(document, window) {
   });
   let active = -1;
   let review = null;
+  let search = null;
   const controller = createController({
     media, cues: transcript.cues, durationMs: transcript.audio.duration_ms,
     requestFrame: callback => window.requestAnimationFrame(callback),
@@ -379,6 +469,7 @@ function mountPlayer(document, window) {
     view: {
       render(state) {
         if (review) review.setAvailable(state.ready && !state.unavailable);
+        if (search) search.setAvailable(state.ready && !state.unavailable);
         clock.textContent = `${formatTime(state.elapsedMs)} / ${formatTime(state.durationMs)}`;
         follow.checked = state.following;
         follow.disabled = rate.disabled = state.unavailable || !state.ready;
@@ -430,6 +521,7 @@ function mountPlayer(document, window) {
   document.addEventListener("visibilitychange", () => controller.visibilityChanged());
   window.addEventListener("pageshow", () => controller.visibilityChanged());
   review = mountReviewNotes(document, window, transcript, media, controller);
+  search = mountTranscriptSearch(document, transcript, controller);
   // Native controls initiate playback only through a user's action. No autoplay or persistence.
   media.src = document.getElementById("audio-data").textContent;
   media.load();
@@ -438,7 +530,7 @@ function mountPlayer(document, window) {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {activeCueIndex, formatTime, createController, NOTE_LIMITS,
-    validNoteText, noteAnchor, createReviewNotes};
+    validNoteText, noteAnchor, createReviewNotes, SEARCH_QUERY_LIMIT, searchCueIndices};
 } else {
   mountPlayer(document, window);
 }

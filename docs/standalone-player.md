@@ -28,7 +28,40 @@ Some managed browsers forbid file URLs. The explicit browser test serves only th
 - Media events, seeks, rate changes and visibility/page restoration re-evaluate the clock. Animation callbacks stop when paused, ended, hidden or waiting for new metadata. Media reload clears readiness and highlighting until metadata arrives. A decode/control error or unexpected duration clears highlighting and disables navigation with a fixed message.
 - Auto-follow scrolls only the transcript container when the active cue changes. Wheel, touch, pointer, keyboard navigation or focus entering the transcript stops follow. It stays off until the user explicitly checks the control again. Manual navigation still updates highlighting and the clock. No automatic focus movement occurs.
 
-The page has Japanese control labels, native keyboard controls, cue buttons with time labels, visible focus, `aria-current` on the active cue, wrapping text and a narrow-screen layout. Only deliberate follow changes and failures use the polite status region; clock/cue updates are not live announcements. Scrolling is instant, with reduced-motion styles and no animated waveform. Screen-reader/device acceptance remains separate from these code-level provisions.
+The page has Japanese control labels, native keyboard controls, cue buttons with time labels, visible focus, `aria-current` on the active cue, wrapping text and a narrow-screen layout. Follow changes, failures and explicit search results use polite status regions; clock/cue updates are not live announcements. Scrolling is instant, with reduced-motion styles and no animated waveform. Screen-reader/device acceptance remains separate from these code-level provisions.
+
+## Search the current transcript
+
+Open **字幕を検索**, enter a term, then select **検索** or press Enter. Results
+show matching cues in transcript order, each with its start time. Selecting a
+result seeks to that exact millisecond position, keeps playing media playing or
+paused media paused, and leaves keyboard focus on the result. Focusing or
+selecting a result stops auto-follow until it is explicitly re-enabled.
+
+Search is literal, case-sensitive substring matching within each cue. Spaces
+in a nonblank query are significant, including at its edges. Empty or
+whitespace-only queries have no results. Regular-expression syntax is ordinary
+text; there is no case folding, Unicode normalization, fuzzy matching or matching
+across cue boundaries. Repeated matches within one cue produce one result.
+The original transcript is never filtered, reordered or retimed.
+
+Queries are limited to 100 Unicode code points, including equality. The input's
+200 UTF-16-unit limit accommodates astral characters; the handler separately
+enforces the code-point limit without truncation and rejects lone surrogates.
+Results use plain-text DOM
+sinks and include all matching cues within the existing preview limits. The
+scrollable result list is separate from the playback transcript and announces
+its count after an explicit search. It does not announce every playback tick.
+
+Typing clears previous results and never seeks. Enter during IME composition
+does not submit a search. **クリア** clears the term/results and returns focus to
+the search input. During metadata loading or a normal media reload, result
+navigation is disabled until metadata is ready. A media failure leaves text
+search available but keeps navigation disabled until the page is reopened.
+A page reload starts with no term or
+results. Search state belongs only to the currently generated page: it is not
+stored, downloaded, sent over a network or included in playback-note JSON.
+Searching while editing a note does not change its fixed anchor or draft text.
 
 ## Validation boundaries
 
@@ -37,5 +70,13 @@ Run the normal Python sequence in [development.md](development.md), followed by 
 `tests/check_player_browser.py` is a separate explicit acceptance tool. It requires an already installed Python Playwright and an explicitly selected Chromium executable. It never installs packages or browsers. Its arguments are `--browser-executable` and an optional `--screenshots` directory in the assigned private evidence area. It serves only generated synthetic HTML on a temporary loopback port, blocks other HTTP requests, checks real media clock advance and native controls, and optionally saves screenshots. It is not part of default unittest discovery or hosted CI; absence of this run must not be reported as a browser pass.
 
 Browser cases cover adjacency/gaps/end, paused cue navigation, native keyboard play/pause, rate changes, actual end, follow/manual scrolling, focus preservation, visible focus, literal markup-looking text, no external resource requests, media failure, reduced-motion mode and a narrow viewport. Node tests cover hidden-tab scheduling; dispatching a visibility event in the browser is only a wiring check, not proof of background-tab throttling behavior.
+
+Search checks cover Japanese and literal markup, case/space distinctions,
+Unicode query bounds, distinct cue matches, explicit selection, millisecond
+navigation, playing/paused state, focus, stale-result clearing, reload and error
+gating. Composition events are simulated to exercise the handlers; native OS
+IME acceptance is not established by this run. Candidate and note browser
+checks also verify search without changing the selected revision, captured note
+anchors or restored-note exports.
 
 Current acceptance is limited to the recorded desktop Chromium version and simulated viewport. Safari, Firefox, mobile devices, assistive technologies, audibility/quality with real recordings, background resource suspension and entitlement delivery remain untested. Synthetic control checks do not approve media quality, rights, human review or publication.

@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {activeCueIndex, formatTime, createController} = require("../player/player.js");
 const {NOTE_LIMITS, validNoteText, noteAnchor, createReviewNotes} = require("../player/player.js");
+const {searchCueIndices, SEARCH_QUERY_LIMIT} = require("../player/player.js");
 const noteCases = require("./fixtures/review-notes-cases.json");
 
 const cues = [
@@ -10,6 +11,55 @@ const cues = [
   {start_ms: 2000, end_ms: 3000},
   {start_ms: 4000, end_ms: 5000}
 ];
+
+test("transcript search returns each matching cue once in transcript order", () => {
+  const source = [{text: "音の確認。音が続きます。"}, {text: "別の字幕。"}, {text: "音の終わり。"}];
+  assert.deepEqual(searchCueIndices(source, "音"), [0, 2]);
+  assert.deepEqual(searchCueIndices(source, "見つからない"), []);
+  assert.deepEqual(searchCueIndices(source, "音の確認。音"), [0]);
+});
+
+test("search treats markup and regular expression symbols as literal text", () => {
+  const source = [{text: '</script><img src=x onerror="alert(1)"> & .* [x] 🎵'}, {text: "anything"}];
+  for (const query of ["</script>", "<img", "&", ".*", "[x]", "🎵"]) {
+    assert.deepEqual(searchCueIndices(source, query), [0]);
+  }
+  assert.deepEqual(searchCueIndices(source, "^.*$"), []);
+});
+
+test("search preserves case, spaces and Unicode distinctions without crossing cue boundaries", () => {
+  const source = [{text: "ABC abc"}, {text: "abc next"}, {text: "e\u0301 é Ａ A"}];
+  assert.deepEqual(searchCueIndices(source, "ABC"), [0]);
+  assert.deepEqual(searchCueIndices(source, "Abc"), []);
+  assert.deepEqual(searchCueIndices(source, " abc"), [0]);
+  assert.deepEqual(searchCueIndices(source, "abc "), [1]);
+  assert.deepEqual(searchCueIndices(source, "abcabc"), []);
+  assert.deepEqual(searchCueIndices([{text: "e\u0301 Ａ"}], "é"), []);
+  assert.deepEqual(searchCueIndices([{text: "e\u0301 Ａ"}], "A"), []);
+  for (const empty of ["", "  ", "\t\n", "\u3000"]) assert.deepEqual(searchCueIndices(source, empty), []);
+});
+
+test("search query bounds count Unicode code points and reject without truncating", () => {
+  for (const unit of ["x", "🎵"]) {
+    const query = unit.repeat(SEARCH_QUERY_LIMIT);
+    assert.deepEqual(searchCueIndices([{text: query}], query), [0]);
+    assert.throws(() => searchCueIndices([{text: query}], query + unit), /^Error: Invalid search query$/);
+  }
+  for (const bad of [null, 3, [], {}, "x".repeat(10000), "\ud83c", "\udfb5", "音\ud83c"]) {
+    assert.throws(() => searchCueIndices([{text: "音🎵"}], bad), /^Error: Invalid search query$/);
+  }
+});
+
+test("search does not mutate cues, reuse another page's results or truncate matching cues", () => {
+  const source = Array.from({length: 1000}, (_, i) => Object.freeze({id: `cue-${i}`, text: "Match"}));
+  Object.freeze(source);
+  const results = searchCueIndices(source, "Match");
+  assert.equal(results.length, 1000);
+  assert.equal(results.at(-1), 999);
+  results.length = 0;
+  assert.deepEqual(searchCueIndices([{id: "cue-0", text: "Different"}], "Match"), []);
+  assert.equal(searchCueIndices(source, "Match").length, 1000);
+});
 
 function noteFixture() {
   const binding = {schema_version: "candidate-review-notes-0.1", project_id: "sample-project",
