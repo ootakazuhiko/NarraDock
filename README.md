@@ -12,6 +12,8 @@ Implemented in the bootstrap: strict manifest validation, deterministic **symbol
 
 Also implemented: [project-local asset registries and byte verification](docs/asset-registry.md). The `narradock_assets.py` CLI separates registry structure validation (`validate`) from read-only asset resolution and streamed SHA-256/size verification (`verify`) beneath an explicitly supplied trusted project root. Verified bytes do not establish rights, media QA, or publication approval.
 
+[Typed script blocks](docs/script-contract.md) separate explicitly marked body text from production directives without changing text or interpreting instructions. The standalone Python API records whole-script and body-only revisions plus per-block UTF-8 hashes. It does not choose speech input, generate media or change the existing manifest planner.
+
 The [timed-transcript contract](docs/synchronized-playback.md) is also implemented in `narradock_transcript.py`: structural validation, caller-supplied reference comparison, a full-transcript revision fingerprint, and escaped plain-text WebVTT export. It does not verify media bytes or connect to the asset registry; a [synthetic synchronized browser player](docs/standalone-player.md) is available separately. The digest and timing in `examples/timed-transcript.json` are placeholders.
 
 The [PCM WAV measurement API](docs/audio-measurements.md) measures verified candidate bytes: frame count, duration, sample peaks, endpoint samples and digital-zero frames. For version 0.2 it compares measured and declared duration. Its supported WAV profile is deliberately limited; observations do not establish a media QA pass.

@@ -1,0 +1,11 @@
+{
+  "schema_version": "script-blocks-0.1",
+  "project_id": "sample-project",
+  "content_id": "sample-script",
+  "language": "en",
+  "blocks": [
+    {"id": "opening", "kind": "body", "text": "This is a neutral script example.\nThe original line break is retained."},
+    {"id": "screen-note", "kind": "directive", "text": "Show a simple comparison when a renderer is separately configured."},
+    {"id": "closing", "kind": "body", "text": "The word BGM in body text remains part of the body."}
+  ]
+}
