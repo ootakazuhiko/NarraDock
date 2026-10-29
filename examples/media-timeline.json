@@ -1,0 +1,13 @@
+{
+  "schema_version": "media-timeline-0.1",
+  "project_id": "sample-project",
+  "content_id": "sample-content",
+  "language": "en",
+  "candidate_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "transcript_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "clock": {"sample_rate_hz": 44100, "frame_count": 88200},
+  "chapters": [
+    {"id": "opening", "title": "Opening", "start_frame": 0, "end_frame": 44100},
+    {"id": "summary", "title": "Summary", "start_frame": 44100, "end_frame": 88200}
+  ]
+}

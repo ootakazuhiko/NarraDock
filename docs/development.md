@@ -31,6 +31,12 @@ identity, selection rejection and non-execution of directives. They do not
 require a speech engine or browser. Browser checks below remain separate
 evidence for changes to the player; they are not script-adapter acceptance.
 
+The [chapter timeline](media-timeline.md) tests also run in the discovered Python
+suite. Temporary generated PCM verifies candidate/transcript bindings, exact
+frame clocks, absolute boundary rounding, stale selections and late read failures.
+Structural 24-hour bounds are tested without generating large media. These tests
+do not establish semantic chapter alignment, real-media quality or browser support.
+
 ## Failure and recovery
 
 Validation errors return exit 2 for the CLI and exit 1 for the public-tree checker. Do not include an actual manifest, credential, local path, or environment dump in public diagnostics. Report command, exit code, sanitized category, and the assigned revision. Preserve needed evidence in the session's approved private evidence location, which must be assigned before real-data work.

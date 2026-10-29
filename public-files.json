@@ -22,6 +22,7 @@
   "docs/license-decision.md",
   "docs/license-status.json",
   "docs/local-packages.md",
+  "docs/media-timeline.md",
   "docs/project-isolation.md",
   "docs/review-notes.md",
   "docs/roadmap.md",
@@ -31,6 +32,7 @@
   "examples/asset-registry.json",
   "examples/audio-only.json",
   "examples/candidate-record.json",
+  "examples/media-timeline.json",
   "examples/script-contract.json",
   "examples/timed-transcript.json",
   "examples/video-enabled.json",
@@ -44,6 +46,7 @@
   "narradock_preview.py",
   "narradock_review.py",
   "narradock_script.py",
+  "narradock_timeline.py",
   "narradock_transcript.py",
   "player/player.css",
   "player/player.js",
@@ -64,6 +67,7 @@
   "tests/test_public_tree.py",
   "tests/test_review.py",
   "tests/test_script.py",
+  "tests/test_timeline.py",
   "tests/test_transcript.py",
   "tools/check_public_tree.py"
 ]
