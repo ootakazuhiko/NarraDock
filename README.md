@@ -18,6 +18,8 @@ The [timed-transcript contract](docs/synchronized-playback.md) is also implement
 
 The [PCM WAV measurement API](docs/audio-measurements.md) measures verified candidate bytes: frame count, duration, sample peaks, endpoint samples and digital-zero frames. For version 0.2 it compares measured and declared duration. Its supported WAV profile is deliberately limited; observations do not establish a media QA pass.
 
+The [chapter timeline API](docs/media-timeline.md) binds exact PCM frame intervals to a selected candidate and transcript, then checks the clock against freshly verified WAV bytes. It preserves frame positions while projecting absolute boundaries to milliseconds without accumulated rounding. Chapter playback UI, media editing and semantic alignment checks remain future work.
+
 The [candidate audio preview API](docs/candidate-preview.md) builds private HTML from a selected version 0.2 candidate, matching transcript and verified PCM WAV. It checks measured duration and embeds the exact bytes from the verification read. The page supports listening and synchronized navigation; it records no review completion or approval.
 
 [Playback notes](docs/review-notes.md) can be attached to fixed positions in that preview, edited and explicitly downloaded as private JSON. The Python loader checks the selected candidate/transcript revisions and cue references. Supplying saved JSON to the preview API restores those notes after validating the same revisions and re-verifying the WAV. Browser edits require an explicit export and regeneration to persist. Notes do not establish review completion, authenticated authorship or approval.
